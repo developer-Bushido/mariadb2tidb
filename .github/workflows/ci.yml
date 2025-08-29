@@ -13,6 +13,8 @@ jobs:
   lint:
     name: golangci-lint
     runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,8 +22,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          # Uses the version from go.mod if present; falls back to a recent stable otherwise
-          go-version-file: go.mod
+          # Pin to match go.mod toolchain to avoid export data mismatches
+          go-version: '1.24.6'
           cache: true
 
       - name: Download modules
@@ -32,4 +34,3 @@ jobs:
         with:
           # Pin to a recent release compatible with modern Go versions
           version: v1.59.1
-
