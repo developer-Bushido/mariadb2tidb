@@ -3,10 +3,10 @@ name: CI
 on:
   # Run on PRs from any branch
   pull_request:
-  # Also run on pushes to any branch (so required push-context checks report), and on version tags
+  # Also run on pushes to default branch and tags
   push:
     branches:
-      - '**'
+      - main
     tags:
       - 'v*'
 
@@ -19,8 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GOTOOLCHAIN: local
-    # Only run build on push events to produce the required "CI / build" status context
-    if: ${{ github.event_name == 'push' }}
     concurrency:
       group: ci-${{ github.workflow }}-${{ github.ref }}-build
       cancel-in-progress: true
