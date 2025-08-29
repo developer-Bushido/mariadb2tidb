@@ -1,0 +1,18 @@
+input_dir: ./DUMPLING
+output_dir: ./LIGHTNING
+enabled_rules: []
+disabled_rules: []
+strict_mode: true
+preserve_comments: true
+formatting:
+  indent_size: 2
+  uppercase_keywords: true
+  backquote_identifiers: true
+  single_quote_strings: true
+charset_mappings:
+  latin1:
+    target_charset: utf8mb4
+    target_collation: utf8mb4_0900_ai_ci
+collation_mappings:
+  latin1_swedish_ci: utf8mb4_0900_ai_ci
+  utf8mb4_unicode_*: utf8mb4_0900_ai_ci
