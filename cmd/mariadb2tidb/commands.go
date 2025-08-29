@@ -270,7 +270,7 @@ func init() {
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
-    Run: func(_ *cobra.Command, args []string) {
+    Run: func(_ *cobra.Command, _ []string) {
 		pterm.Println(pterm.Blue("version:"), version)
 		pterm.Println(pterm.Blue("commit:"), commit)
 		pterm.Println(pterm.Blue("date:"), date)
