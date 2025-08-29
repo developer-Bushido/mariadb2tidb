@@ -22,6 +22,8 @@ jobs:
             echo "Unformatted files:" && echo "$files"
             exit 1
           fi
+      - name: Download modules
+        run: go mod download
       - name: Vet
         run: go vet ./...
       - name: Lint
