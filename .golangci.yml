@@ -1,0 +1,22 @@
+run:
+  timeout: 2m
+  tests: true
+
+linters:
+  disable-all: true
+  enable:
+    - gosimple
+    - staticcheck
+    - ineffassign
+    - unused
+    - govet
+    - misspell
+    - revive
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - revive
+        - staticcheck
+  max-same-issues: 0

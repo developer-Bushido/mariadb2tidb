@@ -3,12 +3,17 @@ package main
 import (
 	"os"
 
+	"github.com/developer-Bushido/mariadb2tidb/internal/utils"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
 var (
-	version = "0.1.0"
+	// Populated via -ldflags at build time
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+
 	verbose bool
 	noColor bool
 
@@ -18,13 +23,15 @@ var (
 		Long: `A command-line tool for migrating MariaDB schemas and data to TiDB.
 Provides functionality for schema transformation, data extraction, and parallel import.`,
 		Version: version,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+            PersistentPreRun: func(_ *cobra.Command, _ []string) {
 			if noColor {
 				pterm.DisableColor()
 			}
 			if verbose {
 				pterm.EnableDebugMessages()
 			}
+			// Initialize logger (development level if verbose)
+			_ = utils.InitLogger(verbose)
 		},
 	}
 )
@@ -40,9 +47,12 @@ func init() {
 	rootCmd.AddCommand(importCmd)
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(diffCmd)
+	rootCmd.AddCommand(versionCmd)
 }
 
 func main() {
+	// Ensure logger flushes if initialized
+	defer func() { _ = utils.GetLogger().Sync() }()
 	if err := rootCmd.Execute(); err != nil {
 		pterm.Error.Printfln("%v", err)
 		os.Exit(1)

@@ -1,17 +1,16 @@
 package parser
 
 import (
-	"io"
-	"os"
-	"regexp"
-	"strings"
-	"unicode"
+    "io"
+    "os"
+    "regexp"
+    "strings"
 
-	"github.com/developer-Bushido/mariadb2tidb/internal/utils"
-	"github.com/pingcap/tidb/pkg/parser"
-	"github.com/pingcap/tidb/pkg/parser/ast"
-	_ "github.com/pingcap/tidb/pkg/parser/test_driver"
-	"go.uber.org/zap"
+    "github.com/developer-Bushido/mariadb2tidb/internal/utils"
+    "github.com/pingcap/tidb/pkg/parser"
+    "github.com/pingcap/tidb/pkg/parser/ast"
+    _ "github.com/pingcap/tidb/pkg/parser/test_driver" // required: register TiDB SQL driver for parser
+    "go.uber.org/zap"
 )
 
 // Loader handles loading and parsing SQL files
@@ -95,24 +94,24 @@ func preprocessSQL(sql string) string {
 		start, end := m[0], m[1]
 		result.WriteString(sql[last:start])
 
-		// Find preceding non-space/non-backtick character
-		j := start - 1
-		for j >= 0 && (unicode.IsSpace(rune(sql[j])) || sql[j] == '`') {
-			j--
-		}
+        // Find preceding non-space/non-backtick character
+        j := start - 1
+        for j >= 0 && (isSpace(sql[j]) || sql[j] == '`') {
+            j--
+        }
 
-		// Find following non-space/non-backtick character
-		i := end
-		for i < len(sql) && (unicode.IsSpace(rune(sql[i])) || sql[i] == '`') {
-			i++
-		}
+        // Find following non-space/non-backtick character
+        i := end
+        for i < len(sql) && (isSpace(sql[i]) || sql[i] == '`') {
+            i++
+        }
 
-		// Extract preceding word for context checks
-		wordEnd := j
-		for wordEnd >= 0 && (unicode.IsLetter(rune(sql[wordEnd])) || unicode.IsDigit(rune(sql[wordEnd])) || sql[wordEnd] == '_') {
-			wordEnd--
-		}
-		precedingWord := strings.ToLower(sql[wordEnd+1 : j+1])
+        // Extract preceding word for context checks
+        wordEnd := j
+        for wordEnd >= 0 && (isAlphaNum(sql[wordEnd]) || sql[wordEnd] == '_') {
+            wordEnd--
+        }
+        precedingWord := strings.ToLower(sql[wordEnd+1 : j+1])
 
 		switch {
 		case i < len(sql) && sql[i] == '(':
@@ -124,13 +123,13 @@ func preprocessSQL(sql string) string {
 		case precedingWord == "key" || precedingWord == "unique" || precedingWord == "primary" || precedingWord == "constraint" || precedingWord == "index":
 			// index or constraint name - leave unchanged
 			result.WriteString(sql[start:end])
-		case j >= 0 && (unicode.IsLetter(rune(sql[j])) || unicode.IsDigit(rune(sql[j])) || sql[j] == '_'):
-			// uuid used as a data type - replace
-			result.WriteString("char(36)")
-		default:
-			// uuid as column name or other - leave unchanged
-			result.WriteString(sql[start:end])
-		}
+        case j >= 0 && (isAlphaNum(sql[j]) || sql[j] == '_'):
+            // uuid used as a data type - replace
+            result.WriteString("char(36)")
+        default:
+            // uuid as column name or other - leave unchanged
+            result.WriteString(sql[start:end])
+        }
 
 		last = end
 	}
@@ -170,4 +169,19 @@ func preprocessSQL(sql string) string {
 	}
 	out.WriteString(processed[last:])
 	return out.String()
+}
+
+// isSpace reports whether b is an ASCII whitespace character.
+func isSpace(b byte) bool {
+    switch b {
+    case ' ', '\t', '\n', '\r', '\v', '\f':
+        return true
+    default:
+        return false
+    }
+}
+
+// isAlphaNum reports whether b is an ASCII letter or digit.
+func isAlphaNum(b byte) bool {
+    return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9')
 }

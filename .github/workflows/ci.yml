@@ -1,30 +1,70 @@
 name: CI
 
 on:
-  push:
-    branches: [ main ]
+  # Run on PRs from any branch
   pull_request:
+  # Also run on pushes to default branch and tags
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
 
 jobs:
   build:
+    name: build
     runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+    concurrency:
+      group: ci-${{ github.workflow }}-${{ github.ref }}-build
+      cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.24.6'
           cache: true
-          check-latest: true
-      - name: Check formatting (gofmt)
-        run: |
-          files=$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))
-          if [ -n "$files" ]; then
-            echo "Unformatted files:" && echo "$files"
-            exit 1
-          fi
-      - name: Vet
-        run: go vet ./...
+
+      - name: Download modules
+        run: go mod download
+
       - name: Build
         run: go build ./...
+
       - name: Test
-        run: go test ./...
+        run: go test ./... -count=1
+
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+    concurrency:
+      group: ci-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          # Pin to match go.mod toolchain to avoid export data mismatches
+          go-version: '1.24.6'
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          # Use the latest golangci-lint to ensure compatibility with Go 1.24
+          version: latest

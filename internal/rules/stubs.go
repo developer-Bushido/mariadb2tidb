@@ -36,7 +36,7 @@ func (r *StubRule) Priority() int {
 }
 
 // ShouldApply implements Rule interface - stub always returns false
-func (r *StubRule) ShouldApply(node ast.Node) bool {
+func (r *StubRule) ShouldApply(_ ast.Node) bool {
 	return false // Stub rules don't apply to anything
 }
 

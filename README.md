@@ -13,13 +13,18 @@ A command-line tool that converts MariaDB schemas into TiDB-compatible SQL.
 
 Requires Go 1.24+.
 
+Quick install (latest):
+```bash
+go install github.com/developer-Bushido/mariadb2tidb/cmd/mariadb2tidb@latest
+```
+
+From source:
 ```bash
 git clone https://github.com/developer-Bushido/mariadb2tidb.git
 cd mariadb2tidb
 make build
+./bin/mariadb2tidb version
 ```
-
-The binary will be created at `bin/mariadb2tidb`.
 
 ## Usage
 
@@ -40,6 +45,16 @@ Run commands with `--config` to read these paths.
 
 See `mariadb2tidb --help` for all commands.
 
+### Configuration file
+Minimal `config/default.yaml` example:
+```yaml
+input_dir: ./DUMPLING
+output_dir: ./LIGHTNING
+enabled_rules: []
+disabled_rules: []
+strict_mode: true
+```
+
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
@@ -48,6 +63,21 @@ See `mariadb2tidb --help` for all commands.
 ## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Development
+- Requirements: Go 1.24+.
+- Format/Vet/Test:
+  ```bash
+  make fmt vet test
+  ```
+- Lint (via golangci-lint):
+  ```bash
+  golangci-lint run
+  ```
+- Build with version metadata:
+  ```bash
+  make build   # uses git tag/commit and date via ldflags
+  ```
 
 ## License
 

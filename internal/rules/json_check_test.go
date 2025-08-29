@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestJsonCheckRule_ColumnAndTable(t *testing.T) {
-	rule := &JsonCheckRule{}
+func TestJSONCheckRule_ColumnAndTable(t *testing.T) {
+    rule := &JSONCheckRule{}
 	p := parser.New()
 	sql := `CREATE TABLE t (
         a JSON CHECK (json_valid(a)),
