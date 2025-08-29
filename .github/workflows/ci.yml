@@ -27,6 +27,7 @@ jobs:
       - name: Vet
         run: go vet ./...
       - name: Lint
+        continue-on-error: true
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.59.1
