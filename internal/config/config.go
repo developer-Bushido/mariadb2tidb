@@ -1,9 +1,9 @@
 package config
 
 import (
-	"os"
+    "os"
 
-	"gopkg.in/yaml.v3"
+    yaml "gopkg.in/yaml.v3"
 )
 
 // Config holds configuration for the transformation engine

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/schollz/progressbar/v3"
+    progressbar "github.com/schollz/progressbar/v3"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
