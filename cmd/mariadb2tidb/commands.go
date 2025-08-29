@@ -215,7 +215,7 @@ var validateCmd = &cobra.Command{
 	Short: "Validate SQL schema for TiDB compatibility",
 	Long:  `Validate that the SQL schema is compatible with TiDB and report any issues.`,
 	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
+    RunE: func(_ *cobra.Command, args []string) error {
 		schemaFile := args[0]
 
 		pterm.Info.Printfln("Validating %s for TiDB compatibility (stub implementation)", schemaFile)
@@ -270,7 +270,7 @@ func init() {
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
-	Run: func(cmd *cobra.Command, args []string) {
+    Run: func(_ *cobra.Command, args []string) {
 		pterm.Println(pterm.Blue("version:"), version)
 		pterm.Println(pterm.Blue("commit:"), commit)
 		pterm.Println(pterm.Blue("date:"), date)

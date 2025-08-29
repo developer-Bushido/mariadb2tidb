@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestJsonGeneratedRule_ConvertColumn(t *testing.T) {
-	rule := &JsonGeneratedRule{}
+func TestJSONGeneratedRule_ConvertColumn(t *testing.T) {
+    rule := &JSONGeneratedRule{}
 	p := parser.New()
 	sql := `CREATE TABLE t (
         id INT,

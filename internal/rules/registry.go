@@ -100,9 +100,9 @@ func (r *Registry) registerDefaultRules(cfg *config.Config) {
 		// Handle missing prefix lengths on indexed text columns
 		&IndexPrefixRule{},
 		&TextBlobDefaultRule{},
-		&JsonCheckRule{},
+        &JSONCheckRule{},
 		&FunctionDefaultRule{},
-		&JsonGeneratedRule{},
+        &JSONGeneratedRule{},
 	}
 
 	for _, rule := range defaultRules {

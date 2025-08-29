@@ -9,16 +9,16 @@ import (
 // JsonCheckRule removes CHECK constraints that use JSON_VALID()
 // Handles both column-level and table-level check constraints
 // Reference: Step 5 in legacy universal_tidb_transform.sh
-type JsonCheckRule struct{}
+type JSONCheckRule struct{}
 
-func (r *JsonCheckRule) Name() string { return "JsonCheck" }
-func (r *JsonCheckRule) Description() string {
+func (r *JSONCheckRule) Name() string { return "JsonCheck" }
+func (r *JSONCheckRule) Description() string {
 	return "Remove JSON_VALID check constraints"
 }
-func (r *JsonCheckRule) Priority() int { return 500 }
+func (r *JSONCheckRule) Priority() int { return 500 }
 
 // ShouldApply determines if node contains JSON_VALID check
-func (r *JsonCheckRule) ShouldApply(node ast.Node) bool {
+func (r *JSONCheckRule) ShouldApply(node ast.Node) bool {
 	switch n := node.(type) {
 	case *ast.ColumnDef:
 		for _, opt := range n.Options {
@@ -37,7 +37,7 @@ func (r *JsonCheckRule) ShouldApply(node ast.Node) bool {
 }
 
 // Apply removes JSON_VALID check constraints
-func (r *JsonCheckRule) Apply(node ast.Node) (ast.Node, error) {
+func (r *JSONCheckRule) Apply(node ast.Node) (ast.Node, error) {
 	switch n := node.(type) {
 	case *ast.ColumnDef:
 		opts := n.Options[:0]

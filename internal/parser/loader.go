@@ -9,7 +9,7 @@ import (
     "github.com/developer-Bushido/mariadb2tidb/internal/utils"
     "github.com/pingcap/tidb/pkg/parser"
     "github.com/pingcap/tidb/pkg/parser/ast"
-    _ "github.com/pingcap/tidb/pkg/parser/test_driver"
+    _ "github.com/pingcap/tidb/pkg/parser/test_driver" // required: register TiDB SQL driver for parser
     "go.uber.org/zap"
 )
 

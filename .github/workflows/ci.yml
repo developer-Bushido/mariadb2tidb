@@ -1,10 +1,14 @@
 name: CI
 
 on:
+  # Run on PRs from any branch
+  pull_request:
+  # Also run on direct pushes to default branch and version tags
   push:
     branches:
-      - "**"
-  pull_request:
+      - main
+    tags:
+      - 'v*'
 
 permissions:
   contents: read
@@ -15,6 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GOTOOLCHAIN: local
+    concurrency:
+      group: ci-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4

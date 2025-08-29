@@ -23,7 +23,7 @@ var (
 		Long: `A command-line tool for migrating MariaDB schemas and data to TiDB.
 Provides functionality for schema transformation, data extraction, and parallel import.`,
 		Version: version,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+            PersistentPreRun: func(_ *cobra.Command, args []string) {
 			if noColor {
 				pterm.DisableColor()
 			}
