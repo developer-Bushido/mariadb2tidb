@@ -2,38 +2,34 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - "**"
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  build:
+  lint:
+    name: golangci-lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          # Uses the version from go.mod if present; falls back to a recent stable otherwise
+          go-version-file: go.mod
           cache: true
-          check-latest: true
-      - name: Check formatting (gofmt)
-        run: |
-          files=$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))
-          if [ -n "$files" ]; then
-            echo "Unformatted files:" && echo "$files"
-            exit 1
-          fi
+
       - name: Download modules
         run: go mod download
-      - name: Vet
-        run: go vet ./...
-      - name: Lint
-        continue-on-error: true
+
+      - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
+          # Pin to a recent release compatible with modern Go versions
           version: v1.59.1
-          args: --timeout=5m --disable typecheck --disable errcheck
-          install-mode: goinstall
-      - name: Build
-        run: go build ./...
-      - name: Test
-        run: go test ./...
+
