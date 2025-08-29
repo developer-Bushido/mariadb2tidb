@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/developer-Bushido/mariadb2tidb/internal/config"
 	"github.com/developer-Bushido/mariadb2tidb/internal/parser"
@@ -56,8 +58,17 @@ and written to the output directory preserving structure.`,
 				return fmt.Errorf("output directory required when input is a directory")
 			}
 			processor := transformer.NewDirProcessor(cfg)
+			// Build cancellable context with optional timeout
+			timeout, _ := cmd.Flags().GetDuration("timeout")
+			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+			if timeout > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, timeout)
+				defer cancel()
+			}
 			spinner, _ := pterm.DefaultSpinner.Start("Transforming directory")
-			if err := processor.ProcessDirectory(context.Background(), inputPath, outputPath, workers); err != nil {
+			if err := processor.ProcessDirectory(ctx, inputPath, outputPath, workers); err != nil {
 				spinner.Fail("Directory transformation failed")
 				return fmt.Errorf("directory transformation failed: %w", err)
 			}
@@ -148,8 +159,16 @@ var transformDirCmd = &cobra.Command{
 		workers, _ := cmd.Flags().GetInt("workers")
 
 		processor := transformer.NewDirProcessor(cfg)
+		timeout, _ := cmd.Flags().GetDuration("timeout")
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		if timeout > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, timeout)
+			defer cancel()
+		}
 		spinner, _ := pterm.DefaultSpinner.Start("Transforming directory")
-		if err := processor.ProcessDirectory(context.Background(), inputDir, outputDir, workers); err != nil {
+		if err := processor.ProcessDirectory(ctx, inputDir, outputDir, workers); err != nil {
 			spinner.Fail("Directory transformation failed")
 			return err
 		}
@@ -224,11 +243,13 @@ func init() {
 	// Transform command flags
 	transformCmd.Flags().StringP("output", "o", "", "Output file or directory (default: stdout or config output_dir)")
 	transformCmd.Flags().IntP("workers", "w", 4, "Number of parallel workers (directory mode)")
+	transformCmd.Flags().Duration("timeout", 0, "Optional timeout for directory transformations, e.g. 30m")
 	transformCmd.Flags().String("config", "", "Path to YAML configuration file")
 
 	// Transform-dir command flags
 	transformDirCmd.Flags().StringP("output", "o", "", "Output directory (default: config output_dir)")
 	transformDirCmd.Flags().IntP("workers", "w", 4, "Number of parallel workers")
+	transformDirCmd.Flags().Duration("timeout", 0, "Optional timeout, e.g. 30m")
 	transformDirCmd.Flags().String("config", "", "Path to YAML configuration file")
 
 	// Extract command flags
@@ -243,4 +264,15 @@ func init() {
 
 	// Diff command flags
 	diffCmd.Flags().StringP("output", "o", "", "Output file (default: stdout)")
+}
+
+// versionCmd prints detailed version information including commit and build date
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Print version information",
+	Run: func(cmd *cobra.Command, args []string) {
+		pterm.Println(pterm.Blue("version:"), version)
+		pterm.Println(pterm.Blue("commit:"), commit)
+		pterm.Println(pterm.Blue("date:"), date)
+	},
 }
