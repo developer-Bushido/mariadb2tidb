@@ -31,6 +31,7 @@ jobs:
         with:
           version: v1.59.1
           args: --timeout=5m --disable typecheck --disable errcheck
+          install-mode: goinstall
       - name: Build
         run: go build ./...
       - name: Test
