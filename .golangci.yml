@@ -1,0 +1,24 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - gosimple
+    - staticcheck
+    - ineffassign
+    - unused
+    - govet
+    - misspell
+    - revive
+  disable:
+    - errcheck      # enable later once code handles all errors explicitly
+    - typecheck     # rely on 'go vet' in CI; re-enable once toolchain mismatch resolved
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - revive
+        - staticcheck
+  max-same-issues: 0
