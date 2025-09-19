@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.24.6'
           cache: true
@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           # Pin to match go.mod toolchain to avoid export data mismatches
           go-version: '1.24.6'
