@@ -93,9 +93,7 @@ func (r *Registry) registerDefaultRules(cfg *config.Config) {
 	// In future iterations, these will be replaced with actual implementations
 
 	defaultRules := []Rule{
-		// Inline charset/collation rule (highest priority for charset handling)
-		NewInlineCharsetRule(cfg),
-		// T-0002: Collation rule
+		// T-0002: Collation rule (highest priority for charset handling)
 		NewCollationRule(cfg),
 		// T-0004: KeyLength rule
 		&KeyLengthRule{},
