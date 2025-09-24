@@ -93,16 +93,16 @@ func (r *Registry) registerDefaultRules(cfg *config.Config) {
 	// In future iterations, these will be replaced with actual implementations
 
 	defaultRules := []Rule{
-		// T-0002: Collation rule (highest priority)
+		// T-0002: Collation rule (highest priority for charset handling)
 		NewCollationRule(cfg),
 		// T-0004: KeyLength rule
 		&KeyLengthRule{},
 		// Handle missing prefix lengths on indexed text columns
 		&IndexPrefixRule{},
 		&TextBlobDefaultRule{},
-        &JSONCheckRule{},
+		&JSONCheckRule{},
 		&FunctionDefaultRule{},
-        &JSONGeneratedRule{},
+		&JSONGeneratedRule{},
 	}
 
 	for _, rule := range defaultRules {

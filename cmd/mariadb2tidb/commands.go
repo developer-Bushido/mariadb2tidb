@@ -78,7 +78,7 @@ and written to the output directory preserving structure.`,
 		}
 
 		// Load SQL from input file
-		loader := parser.NewLoader()
+		loader := parser.NewLoaderWithConfig(cfg)
 		stmts, err := loader.LoadFromFile(inputPath)
 		if err != nil {
 			return fmt.Errorf("failed to load SQL file: %w", err)
@@ -215,7 +215,7 @@ var validateCmd = &cobra.Command{
 	Short: "Validate SQL schema for TiDB compatibility",
 	Long:  `Validate that the SQL schema is compatible with TiDB and report any issues.`,
 	Args:  cobra.ExactArgs(1),
-    RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, args []string) error {
 		schemaFile := args[0]
 
 		pterm.Info.Printfln("Validating %s for TiDB compatibility (stub implementation)", schemaFile)
@@ -270,7 +270,7 @@ func init() {
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
-    Run: func(_ *cobra.Command, _ []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		pterm.Println(pterm.Blue("version:"), version)
 		pterm.Println(pterm.Blue("commit:"), commit)
 		pterm.Println(pterm.Blue("date:"), date)
