@@ -1,0 +1,12 @@
+input_dir: .
+output_dir: .
+charset_mappings:
+  utf8mb3:
+    target_charset: utf8mb4
+    target_collation: utf8mb4_0900_ai_ci
+  utf8:
+    target_charset: utf8mb4
+    target_collation: utf8mb4_0900_ai_ci
+collation_mappings:
+  utf8mb3_unicode_ci: utf8mb4_0900_ai_ci
+  utf8_unicode_ci: utf8mb4_0900_ai_ci

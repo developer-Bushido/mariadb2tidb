@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-    progressbar "github.com/schollz/progressbar/v3"
+	progressbar "github.com/schollz/progressbar/v3"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
@@ -19,6 +19,7 @@ import (
 // DirProcessor transforms all SQL files in a directory tree.
 type DirProcessor struct {
 	engine *Engine
+	config *config.Config
 	logger *zap.Logger
 }
 
@@ -26,6 +27,7 @@ type DirProcessor struct {
 func NewDirProcessor(cfg *config.Config) *DirProcessor {
 	return &DirProcessor{
 		engine: NewEngine(cfg),
+		config: cfg,
 		logger: utils.GetLogger(),
 	}
 }
@@ -98,7 +100,7 @@ func (p *DirProcessor) processFile(ctx context.Context, inputDir, outputDir, fil
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	loader := intparser.NewLoader()
+	loader := intparser.NewLoaderWithConfig(p.config)
 	writer := intparser.NewWriter()
 
 	stmts, err := loader.LoadFromFile(filePath)

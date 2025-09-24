@@ -1,30 +1,60 @@
 package parser
 
 import (
-    "io"
-    "os"
-    "regexp"
-    "strings"
+	"io"
+	"os"
+	"regexp"
+	"strings"
 
-    "github.com/developer-Bushido/mariadb2tidb/internal/utils"
-    "github.com/pingcap/tidb/pkg/parser"
-    "github.com/pingcap/tidb/pkg/parser/ast"
-    _ "github.com/pingcap/tidb/pkg/parser/test_driver" // required: register TiDB SQL driver for parser
-    "go.uber.org/zap"
+	"github.com/developer-Bushido/mariadb2tidb/internal/config"
+	"github.com/developer-Bushido/mariadb2tidb/internal/utils"
+	"github.com/pingcap/tidb/pkg/parser"
+	"github.com/pingcap/tidb/pkg/parser/ast"
+	_ "github.com/pingcap/tidb/pkg/parser/test_driver" // required: register TiDB SQL driver for parser
+	"go.uber.org/zap"
 )
 
 // Loader handles loading and parsing SQL files
 type Loader struct {
-	parser *parser.Parser
-	logger *zap.Logger
+	parser       *parser.Parser
+	logger       *zap.Logger
+	charsetMap   map[string]string // maps source charset to target charset
+	collationMap map[string]string // maps source collation to target collation
 }
 
 // NewLoader creates a new SQL loader
 func NewLoader() *Loader {
 	return &Loader{
-		parser: parser.New(),
-		logger: utils.GetLogger(),
+		parser:       parser.New(),
+		logger:       utils.GetLogger(),
+		charsetMap:   make(map[string]string),
+		collationMap: make(map[string]string),
 	}
+}
+
+// WithCharsetMappings configures the loader with charset and collation mappings
+func (l *Loader) WithCharsetMappings(charsetMap map[string]string, collationMap map[string]string) *Loader {
+	l.charsetMap = charsetMap
+	l.collationMap = collationMap
+	return l
+}
+
+// NewLoaderWithConfig creates a loader configured with charset mappings from config
+func NewLoaderWithConfig(cfg *config.Config) *Loader {
+	loader := NewLoader()
+
+	if cfg != nil {
+		// Convert charset mappings
+		charsetMap := make(map[string]string)
+		for source, mapping := range cfg.CharsetMappings {
+			charsetMap[source] = mapping.TargetCharset
+		}
+
+		// Use collation mappings directly
+		loader.WithCharsetMappings(charsetMap, cfg.CollationMappings)
+	}
+
+	return loader
 }
 
 // LoadFromFile loads and parses SQL from a file
@@ -57,7 +87,7 @@ func (l *Loader) LoadFromString(sql string) ([]ast.StmtNode, error) {
 	l.logger.Debug("Parsing SQL", zap.Int("length", len(sql)))
 
 	// Preprocess unsupported constructs before parsing
-	sql = preprocessSQL(sql)
+	sql = l.preprocessSQL(sql)
 
 	stmts, _, err := l.parser.Parse(sql, "", "")
 	if err != nil {
@@ -77,10 +107,13 @@ var (
 )
 
 // preprocessSQL performs lightweight text-based transformations before AST parsing.
-// Currently handles UUID type replacement to ensure TiDB parser compatibility.
-func preprocessSQL(sql string) string {
+// Currently handles UUID type replacement and charset/collation transformation for TiDB compatibility.
+func (l *Loader) preprocessSQL(sql string) string {
 	// Remove MariaDB table encryption options that TiDB doesn't support
 	sql = encryptedRegex.ReplaceAllString(sql, " ")
+
+	// Apply charset and collation transformations if configured
+	sql = l.applyCharsetMappings(sql)
 
 	// Replace standalone UUID data types with char(36) but keep functions and identifiers
 	matches := uuidRegex.FindAllStringIndex(sql, -1)
@@ -94,24 +127,24 @@ func preprocessSQL(sql string) string {
 		start, end := m[0], m[1]
 		result.WriteString(sql[last:start])
 
-        // Find preceding non-space/non-backtick character
-        j := start - 1
-        for j >= 0 && (isSpace(sql[j]) || sql[j] == '`') {
-            j--
-        }
+		// Find preceding non-space/non-backtick character
+		j := start - 1
+		for j >= 0 && (isSpace(sql[j]) || sql[j] == '`') {
+			j--
+		}
 
-        // Find following non-space/non-backtick character
-        i := end
-        for i < len(sql) && (isSpace(sql[i]) || sql[i] == '`') {
-            i++
-        }
+		// Find following non-space/non-backtick character
+		i := end
+		for i < len(sql) && (isSpace(sql[i]) || sql[i] == '`') {
+			i++
+		}
 
-        // Extract preceding word for context checks
-        wordEnd := j
-        for wordEnd >= 0 && (isAlphaNum(sql[wordEnd]) || sql[wordEnd] == '_') {
-            wordEnd--
-        }
-        precedingWord := strings.ToLower(sql[wordEnd+1 : j+1])
+		// Extract preceding word for context checks
+		wordEnd := j
+		for wordEnd >= 0 && (isAlphaNum(sql[wordEnd]) || sql[wordEnd] == '_') {
+			wordEnd--
+		}
+		precedingWord := strings.ToLower(sql[wordEnd+1 : j+1])
 
 		switch {
 		case i < len(sql) && sql[i] == '(':
@@ -123,13 +156,13 @@ func preprocessSQL(sql string) string {
 		case precedingWord == "key" || precedingWord == "unique" || precedingWord == "primary" || precedingWord == "constraint" || precedingWord == "index":
 			// index or constraint name - leave unchanged
 			result.WriteString(sql[start:end])
-        case j >= 0 && (isAlphaNum(sql[j]) || sql[j] == '_'):
-            // uuid used as a data type - replace
-            result.WriteString("char(36)")
-        default:
-            // uuid as column name or other - leave unchanged
-            result.WriteString(sql[start:end])
-        }
+		case j >= 0 && (isAlphaNum(sql[j]) || sql[j] == '_'):
+			// uuid used as a data type - replace
+			result.WriteString("char(36)")
+		default:
+			// uuid as column name or other - leave unchanged
+			result.WriteString(sql[start:end])
+		}
 
 		last = end
 	}
@@ -171,17 +204,34 @@ func preprocessSQL(sql string) string {
 	return out.String()
 }
 
+// applyCharsetMappings applies configured charset and collation transformations
+func (l *Loader) applyCharsetMappings(sql string) string {
+	// Apply charset mappings
+	for sourceCharset, targetCharset := range l.charsetMap {
+		charsetRegex := regexp.MustCompile(`(?i)character\s+set\s+` + regexp.QuoteMeta(sourceCharset) + `\b`)
+		sql = charsetRegex.ReplaceAllString(sql, "CHARACTER SET "+targetCharset)
+	}
+
+	// Apply collation mappings
+	for sourceCollation, targetCollation := range l.collationMap {
+		collationRegex := regexp.MustCompile(`(?i)collate\s+` + regexp.QuoteMeta(sourceCollation) + `\b`)
+		sql = collationRegex.ReplaceAllString(sql, "COLLATE "+targetCollation)
+	}
+
+	return sql
+}
+
 // isSpace reports whether b is an ASCII whitespace character.
 func isSpace(b byte) bool {
-    switch b {
-    case ' ', '\t', '\n', '\r', '\v', '\f':
-        return true
-    default:
-        return false
-    }
+	switch b {
+	case ' ', '\t', '\n', '\r', '\v', '\f':
+		return true
+	default:
+		return false
+	}
 }
 
 // isAlphaNum reports whether b is an ASCII letter or digit.
 func isAlphaNum(b byte) bool {
-    return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9')
+	return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9')
 }
