@@ -6,7 +6,7 @@ toolchain go1.24.6
 
 require (
 	github.com/pingcap/tidb/pkg/parser v0.0.0-20250730091531-0501de48c5b0
-	github.com/pterm/pterm v0.12.81
+	github.com/pterm/pterm v0.12.82
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.11.1
