@@ -64,7 +64,7 @@ jobs:
         run: go mod download
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           # Use the latest golangci-lint to ensure compatibility with Go 1.24
           version: latest
