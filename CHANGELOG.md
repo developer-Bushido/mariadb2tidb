@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Go raised to 1.26 (toolchain go1.26.5) alongside the vitess v0.24.2 bump;
+  govulncheck clean.
+- README badge row added (OpenSSF Scorecard, Go Report Card, Go Reference,
+  codecov, Go version, license); OpenSSF Scorecard workflow and CI coverage
+  upload to Codecov.
 - **KeyLength rule no longer truncates columns.** It now caps *index key
   prefix lengths* at 768 characters (TiDB's 3072-byte `max-index-length` in
   utf8mb4) instead of shrinking `VARCHAR` column definitions, which could
