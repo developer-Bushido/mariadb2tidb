@@ -2,6 +2,8 @@ module github.com/developer-Bushido/mariadb2tidb
 
 go 1.26.4
 
+toolchain go1.26.5
+
 require (
 	github.com/pingcap/tidb/pkg/parser v0.0.0-20250730091531-0501de48c5b0
 	github.com/pterm/pterm v0.12.83
