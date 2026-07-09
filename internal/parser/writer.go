@@ -12,7 +12,7 @@ import (
 )
 
 // charsetEmptyDefaultRegex matches charset-prefixed empty string defaults
-// (e.g. `DEFAULT _utf8mb4 ”`) that the restore step emits.
+// (a DEFAULT _utf8mb4 prefix before an empty string literal) that the restore step emits.
 var charsetEmptyDefaultRegex = regexp.MustCompile(`(?i)DEFAULT\s+_utf8mb4\s+''`)
 
 // Writer handles writing AST back to formatted SQL
