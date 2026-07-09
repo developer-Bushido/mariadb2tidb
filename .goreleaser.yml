@@ -31,5 +31,20 @@ changelog:
   sort: desc
   use: git
 
+# Keyless signing of the checksums file with cosign (Sigstore); verifiable via
+# cosign verify-blob and detected by OpenSSF Scorecard's Signed-Releases check.
+signs:
+  - cmd: cosign
+    signature: '${artifact}.sig'
+    certificate: '${artifact}.pem'
+    args:
+      - sign-blob
+      - '--yes'
+      - '--output-signature=${signature}'
+      - '--output-certificate=${certificate}'
+      - '${artifact}'
+    artifacts: checksum
+    output: true
+
 release:
-  draft: true
+  draft: false

@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Releases are now published (not draft) with the checksums file signed via
+  keyless cosign; workflow token permissions tightened to job level;
+  govulncheck runs through the pinned official action; fuzz tests added for
+  the SQL preprocessor and loader; SECURITY.md links the private reporting
+  flow.
 - Go raised to 1.26 (toolchain go1.26.5) alongside the vitess v0.24.2 bump;
   govulncheck clean.
 - README badge row added (OpenSSF Scorecard, Go Reference, codecov, Go
