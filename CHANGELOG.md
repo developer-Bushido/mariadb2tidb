@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Go raised to 1.26 (toolchain go1.26.5) alongside the vitess v0.24.2 bump;
   govulncheck clean.
-- README badge row added (OpenSSF Scorecard, Go Report Card, Go Reference,
-  codecov, Go version, license); OpenSSF Scorecard workflow and CI coverage
-  upload to Codecov.
+- README badge row added (OpenSSF Scorecard, Go Reference, codecov, Go
+  version, license); OpenSSF Scorecard workflow and CI coverage upload to
+  Codecov.
 - **KeyLength rule no longer truncates columns.** It now caps *index key
   prefix lengths* at 768 characters (TiDB's 3072-byte `max-index-length` in
   utf8mb4) instead of shrinking `VARCHAR` column definitions, which could
@@ -32,8 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and reports errors/warnings.
 - CLI: unimplemented stub commands (`extract`, `import`, `diff`) removed
   until they have real implementations.
-- Toolchain pinned to Go 1.25.12; vitess bumped to v0.22.4 (fixes
-  GO-2026-4567); cobra/pterm/zap/x-sync updated.
+- vitess bumped past GO-2026-4567 (v0.22.4, later v0.24.2);
+  cobra/pterm/zap/x-sync updated.
 - CI: gofmt check, race-enabled tests, govulncheck job, golangci-lint v2,
   actions pinned by commit SHA; goreleaser release workflow added.
 

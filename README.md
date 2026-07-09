@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/developer-Bushido/mariadb2tidb/actions/workflows/ci.yml/badge.svg)](https://github.com/developer-Bushido/mariadb2tidb/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/developer-Bushido/mariadb2tidb/badge)](https://scorecard.dev/viewer/?uri=github.com/developer-Bushido/mariadb2tidb)
-[![Go Report Card](https://goreportcard.com/badge/github.com/developer-Bushido/mariadb2tidb)](https://goreportcard.com/report/github.com/developer-Bushido/mariadb2tidb)
 [![Go Reference](https://pkg.go.dev/badge/github.com/developer-Bushido/mariadb2tidb.svg)](https://pkg.go.dev/github.com/developer-Bushido/mariadb2tidb)
 [![codecov](https://codecov.io/gh/developer-Bushido/mariadb2tidb/graph/badge.svg)](https://codecov.io/gh/developer-Bushido/mariadb2tidb)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/developer-Bushido/mariadb2tidb)](go.mod)
