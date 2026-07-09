@@ -47,9 +47,11 @@ func TestGolden(t *testing.T) {
 			require.NoError(t, err, "write")
 			got += "\n"
 
-			// The output must itself be valid SQL for the TiDB parser.
-			_, err = parser.NewLoader().LoadFromString(got)
+			// The output must itself be valid SQL for the TiDB parser,
+			// without any loader preprocessing masking problems.
+			_, warns, err := parser.NewLoader().ValidateSQL(got)
 			require.NoError(t, err, "transformed output must re-parse with the TiDB parser")
+			require.Empty(t, warns, "transformed output must re-parse without warnings")
 
 			goldenPath := filepath.Join("testdata", name+".expected.sql")
 			if *update {

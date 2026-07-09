@@ -236,7 +236,13 @@ func (l *Loader) ValidateFile(filename string) (int, []error, error) {
 	if err != nil {
 		return 0, nil, err
 	}
-	stmts, warns, err := l.parser.Parse(string(data), "", "")
+	return l.ValidateSQL(string(data))
+}
+
+// ValidateSQL parses SQL text with the TiDB parser without any preprocessing
+// and returns the statement count, parser warnings, and the first hard error.
+func (l *Loader) ValidateSQL(sql string) (int, []error, error) {
+	stmts, warns, err := l.parser.Parse(sql, "", "")
 	return len(stmts), warns, err
 }
 

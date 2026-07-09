@@ -132,6 +132,13 @@ prompt_mariadb_password() {
     fi
 }
 
+prompt_tidb_password() {
+    if [[ -z "$TIDB_PASS" ]]; then
+        read -rsp "Enter TiDB password for $TIDB_USER@$TIDB_HOST (empty for none): " TIDB_PASS
+        echo
+    fi
+}
+
 # Run mysql against MariaDB; password travels via MYSQL_PWD, not argv.
 mariadb_client() {
     MYSQL_PWD="$MARIADB_PASS" mysql -h "$MARIADB_HOST" -P "$MARIADB_PORT" -u "$MARIADB_USER" "$@"
@@ -261,6 +268,8 @@ cmd_load() {
         log_info "[DRY RUN] Would run: mysql -h $TIDB_HOST -P $TIDB_PORT -u $TIDB_USER $db_name < '$input'"
         return
     fi
+
+    prompt_tidb_password
 
     tidb_client -e "CREATE DATABASE IF NOT EXISTS \`$db_name\`"
     tidb_client "$db_name" < "$input"
