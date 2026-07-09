@@ -5,13 +5,17 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
+permissions: read-all
 
 jobs:
   goreleaser:
     name: goreleaser
     runs-on: ubuntu-latest
+    permissions:
+      # Create the GitHub release and upload assets
+      contents: write
+      # Keyless cosign signing (OIDC)
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -23,6 +27,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
