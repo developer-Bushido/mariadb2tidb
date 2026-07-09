@@ -3,15 +3,44 @@ package rules
 import (
 	"strings"
 
+	"github.com/developer-Bushido/mariadb2tidb/internal/config"
 	"github.com/pingcap/tidb/pkg/parser/ast"
 )
 
 // FunctionDefaultRule removes unsupported function-based default values.
-// TiDB allows only a small set of deterministic functions in DEFAULT clauses
-// (for example, CURRENT_TIMESTAMP). Any other function call is stripped.
-// Reference: Step 6 in legacy universal_tidb_transform.sh
-// Other function-based defaults are removed entirely for compatibility.
-type FunctionDefaultRule struct{}
+// TiDB allows only a small set of functions in DEFAULT clauses without the
+// expression syntax (for example, CURRENT_TIMESTAMP); newer TiDB versions
+// accept more expressions, so the allowlist is configurable via
+// allowed_default_functions.
+// https://docs.pingcap.com/tidb/stable/data-type-default-values
+type FunctionDefaultRule struct {
+	allowed map[string]bool
+}
+
+// defaultAllowedDefaultFuncs lists function names every supported TiDB
+// version accepts in DEFAULT clauses.
+var defaultAllowedDefaultFuncs = []string{
+	"current_timestamp",
+	"current_date",
+	"current_time",
+	"now",
+	"localtime",
+	"localtimestamp",
+}
+
+// NewFunctionDefaultRule creates the rule using the allowlist from cfg,
+// falling back to the built-in defaults.
+func NewFunctionDefaultRule(cfg *config.Config) *FunctionDefaultRule {
+	names := defaultAllowedDefaultFuncs
+	if cfg != nil && len(cfg.AllowedDefaultFunctions) > 0 {
+		names = cfg.AllowedDefaultFunctions
+	}
+	allowed := make(map[string]bool, len(names))
+	for _, n := range names {
+		allowed[strings.ToLower(n)] = true
+	}
+	return &FunctionDefaultRule{allowed: allowed}
+}
 
 // Name returns rule name
 func (r *FunctionDefaultRule) Name() string { return "FunctionDefault" }
@@ -33,8 +62,7 @@ func (r *FunctionDefaultRule) ShouldApply(node ast.Node) bool {
 	for _, opt := range col.Options {
 		if opt.Tp == ast.ColumnOptionDefaultValue {
 			if fc, ok := opt.Expr.(*ast.FuncCallExpr); ok {
-				name := strings.ToLower(fc.FnName.O)
-				if !allowedDefaultFuncs[name] {
+				if !r.isAllowed(fc.FnName.O) {
 					return true
 				}
 			}
@@ -45,13 +73,15 @@ func (r *FunctionDefaultRule) ShouldApply(node ast.Node) bool {
 
 // Apply removes the default clause if it uses a disallowed function
 func (r *FunctionDefaultRule) Apply(node ast.Node) (ast.Node, error) {
-	col := node.(*ast.ColumnDef)
+	col, ok := node.(*ast.ColumnDef)
+	if !ok {
+		return node, nil
+	}
 	opts := col.Options[:0]
 	for _, opt := range col.Options {
 		if opt.Tp == ast.ColumnOptionDefaultValue {
 			if fc, ok := opt.Expr.(*ast.FuncCallExpr); ok {
-				name := strings.ToLower(fc.FnName.O)
-				if !allowedDefaultFuncs[name] {
+				if !r.isAllowed(fc.FnName.O) {
 					continue
 				}
 			}
@@ -62,10 +92,17 @@ func (r *FunctionDefaultRule) Apply(node ast.Node) (ast.Node, error) {
 	return col, nil
 }
 
-// allowedDefaultFuncs lists function names permitted in DEFAULT clauses
-var allowedDefaultFuncs = map[string]bool{
-	"current_timestamp": true,
-	"current_date":      true,
-	"current_time":      true,
-	"now":               true,
+// isAllowed reports whether a function name may stay in a DEFAULT clause.
+// A zero-value rule falls back to the built-in allowlist.
+func (r *FunctionDefaultRule) isAllowed(name string) bool {
+	name = strings.ToLower(name)
+	if r.allowed != nil {
+		return r.allowed[name]
+	}
+	for _, n := range defaultAllowedDefaultFuncs {
+		if n == name {
+			return true
+		}
+	}
+	return false
 }

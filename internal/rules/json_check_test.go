@@ -11,7 +11,7 @@ import (
 )
 
 func TestJSONCheckRule_ColumnAndTable(t *testing.T) {
-    rule := &JSONCheckRule{}
+	rule := &JSONCheckRule{}
 	p := parser.New()
 	sql := `CREATE TABLE t (
         a JSON CHECK (json_valid(a)),

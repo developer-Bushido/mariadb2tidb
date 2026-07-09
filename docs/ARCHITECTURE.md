@@ -2,69 +2,62 @@
 
 ## Overview
 
-The mariadb2tidb tool is designed as a command-line application that transforms MariaDB SQL schemas to be compatible with TiDB. The architecture follows a modular design pattern with clear separation of concerns.
+The mariadb2tidb tool is a command-line application that transforms MariaDB SQL schemas to be compatible with TiDB. The architecture follows a modular design with clear separation of concerns.
 
 ## Components
 
 ### CLI Layer (`cmd/mariadb2tidb/`)
-- **main.go**: Entry point and CLI setup using Cobra framework
-- **commands.go**: Command definitions (transform, extract, import, validate, diff)
+- **main.go**: Entry point and CLI setup using the Cobra framework
+- **commands.go**: Command definitions (`transform`, `transform-dir`, `validate`, `version`)
 
 ### Parser Layer (`internal/parser/`)
-- **loader.go**: Loads SQL from files, strings, or readers using TiDB parser
-- **writer.go**: Converts AST back to formatted SQL with proper indentation
-- **visitor.go**: AST traversal utilities with visitor pattern
-- **test_helper.go**: Testing utilities for parser components
+- **loader.go**: Loads SQL from files, strings, or readers using the TiDB parser; applies light textual preprocessing for constructs the parser rejects (MariaDB `UUID` type, table encryption options, charset/collation mappings)
+- **writer.go**: Converts the AST back to formatted SQL (TiDB restore + vitess pretty-printing)
+- **visitor.go**: AST traversal utilities with the visitor pattern
+
+### Configuration (`internal/config/`)
+- **config.go**: YAML-backed configuration: input/output directories, rule toggles, charset/collation mappings, allowed default functions
 
 ### Transformation Engine (`internal/transformer/`)
-- **engine.go**: Orchestrates rule application and AST transformation
-- **config.go**: Configuration management for transformation options
+- **engine.go**: Orchestrates rule application over the AST
+- **dir_processor.go**: Applies the pipeline to a directory tree with parallel workers
 
 ### Rules System (`internal/rules/`)
-- **interface.go**: Rule interface definition
-- **registry.go**: Rule registration and management
-- **stubs.go**: Placeholder implementations for future rules
+- **interface.go**: `Rule` interface definition
+- **registry.go**: Rule registration, priority ordering, and enable/disable filtering
+- One file per rule; see [RULES.md](RULES.md)
 
 ### Utilities (`internal/utils/`)
 - **logger.go**: Structured logging using Zap
 
-### Legacy Scripts (historical)
-- Note: Legacy shell scripts have been removed from the public repository. They are referenced here only for historical context — the Go implementation supersedes them.
-
 ## Data Flow
 
-1. **Input**: SQL file or string containing MariaDB schema
-2. **Parse**: TiDB parser converts SQL to AST
-3. **Transform**: Rules engine applies transformation rules to AST
-4. **Format**: Writer converts modified AST back to readable SQL
-5. **Output**: TiDB-compatible SQL
+1. **Input**: SQL file or string containing a MariaDB schema
+2. **Preprocess**: Targeted text fixes for syntax the TiDB parser cannot represent (UUID columns, `ENCRYPTED=YES` options, charset mappings)
+3. **Parse**: TiDB parser converts SQL to an AST
+4. **Transform**: Rules engine applies transformation rules to the AST in priority order
+5. **Format**: Writer restores the modified AST back into readable SQL
+6. **Output**: TiDB-compatible SQL
 
 ## Key Design Decisions
 
-### AST-Only Transformations
-- All transformations operate on the Abstract Syntax Tree
-- No regex-based text manipulation
-- Ensures syntactic correctness
+### AST-First Transformations
+- Rules operate on the Abstract Syntax Tree, which guarantees syntactic correctness
+- Text preprocessing is kept to the minimum needed to make MariaDB-only syntax parseable at all
 
 ### Rule-Based Architecture
-- Each transformation is implemented as a rule
-- Rules are applied in priority order
+- Each transformation is implemented as a rule with a priority
 - Rules are idempotent and composable
+- Rules can be toggled via `enabled_rules` / `disabled_rules` in the config
 
-### Test-Driven Development
-- Legacy scripts serve as oracle for expected behavior
-- Unit tests for individual components
-- Integration tests for end-to-end workflows
-
-### Modular Design
-- Clear separation between parsing, transformation, and formatting
-- Each component can be tested independently
-- Easy to extend with new rules or features
+### Testing
+- Unit tests per rule
+- End-to-end golden tests (`test/golden_test.go`) run every fixture through the full pipeline, verify the output re-parses with the TiDB parser, and compare against expected files (`go test ./test -run TestGolden -update` regenerates them)
 
 ## Future Enhancements
 
 The architecture supports incremental development:
 - Add new transformation rules to the registry
-- Extend CLI with additional commands
+- Extend the CLI with additional commands
 - Add support for data migration (not just schema)
-- Integration with TiDB ecosystem tools 
+- Integration with TiDB ecosystem tools (Dumpling, Lightning, DM)

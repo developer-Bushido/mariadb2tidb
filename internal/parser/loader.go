@@ -1,3 +1,6 @@
+// Package parser loads SQL text into TiDB parser ASTs (with light textual
+// preprocessing for constructs the parser rejects) and restores ASTs back
+// into formatted SQL.
 package parser
 
 import (
@@ -14,28 +17,42 @@ import (
 	"go.uber.org/zap"
 )
 
+// mappingReplacement is a precompiled charset/collation rewrite.
+type mappingReplacement struct {
+	re   *regexp.Regexp
+	repl string
+}
+
 // Loader handles loading and parsing SQL files
 type Loader struct {
 	parser       *parser.Parser
 	logger       *zap.Logger
-	charsetMap   map[string]string // maps source charset to target charset
-	collationMap map[string]string // maps source collation to target collation
+	replacements []mappingReplacement // precompiled charset/collation rewrites
 }
 
 // NewLoader creates a new SQL loader
 func NewLoader() *Loader {
 	return &Loader{
-		parser:       parser.New(),
-		logger:       utils.GetLogger(),
-		charsetMap:   make(map[string]string),
-		collationMap: make(map[string]string),
+		parser: parser.New(),
+		logger: utils.GetLogger(),
 	}
 }
 
 // WithCharsetMappings configures the loader with charset and collation mappings
 func (l *Loader) WithCharsetMappings(charsetMap map[string]string, collationMap map[string]string) *Loader {
-	l.charsetMap = charsetMap
-	l.collationMap = collationMap
+	l.replacements = l.replacements[:0]
+	for source, target := range charsetMap {
+		l.replacements = append(l.replacements, mappingReplacement{
+			re:   regexp.MustCompile(`(?i)character\s+set\s+` + regexp.QuoteMeta(source) + `\b`),
+			repl: "CHARACTER SET " + target,
+		})
+	}
+	for source, target := range collationMap {
+		l.replacements = append(l.replacements, mappingReplacement{
+			re:   regexp.MustCompile(`(?i)collate\s+` + regexp.QuoteMeta(source) + `\b`),
+			repl: "COLLATE " + target,
+		})
+	}
 	return l
 }
 
@@ -66,7 +83,7 @@ func (l *Loader) LoadFromFile(filename string) ([]ast.StmtNode, error) {
 		l.logger.Error("Failed to open file", zap.String("file", filename), zap.Error(err))
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	return l.LoadFromReader(file)
 }
@@ -206,19 +223,21 @@ func (l *Loader) preprocessSQL(sql string) string {
 
 // applyCharsetMappings applies configured charset and collation transformations
 func (l *Loader) applyCharsetMappings(sql string) string {
-	// Apply charset mappings
-	for sourceCharset, targetCharset := range l.charsetMap {
-		charsetRegex := regexp.MustCompile(`(?i)character\s+set\s+` + regexp.QuoteMeta(sourceCharset) + `\b`)
-		sql = charsetRegex.ReplaceAllString(sql, "CHARACTER SET "+targetCharset)
+	for _, m := range l.replacements {
+		sql = m.re.ReplaceAllString(sql, m.repl)
 	}
-
-	// Apply collation mappings
-	for sourceCollation, targetCollation := range l.collationMap {
-		collationRegex := regexp.MustCompile(`(?i)collate\s+` + regexp.QuoteMeta(sourceCollation) + `\b`)
-		sql = collationRegex.ReplaceAllString(sql, "COLLATE "+targetCollation)
-	}
-
 	return sql
+}
+
+// ValidateFile parses a file with the TiDB parser without any preprocessing
+// and returns the statement count, parser warnings, and the first hard error.
+func (l *Loader) ValidateFile(filename string) (int, []error, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return 0, nil, err
+	}
+	stmts, warns, err := l.parser.Parse(string(data), "", "")
+	return len(stmts), warns, err
 }
 
 // isSpace reports whether b is an ASCII whitespace character.

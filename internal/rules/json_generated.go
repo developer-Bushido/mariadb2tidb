@@ -7,9 +7,11 @@ import (
 )
 
 // JSONGeneratedRule converts generated columns using JSON functions into
-// regular columns. TiDB does not allow expressions with JSON functions in
-// generated columns. Reference: Step 12 in legacy universal_tidb_transform.sh.
-// This rule strips the generated expression (and related options) while
+// regular columns. Modern TiDB supports JSON functions in generated columns
+// (https://docs.pingcap.com/tidb/stable/generated-columns), so this rule is
+// disabled by default and only needed for legacy TiDB targets.
+// Reference: Step 12 in legacy universal_tidb_transform.sh.
+// The rule strips the generated expression (and related options) while
 // keeping the column definition intact so that column counts stay consistent
 // between source and target databases.
 type JSONGeneratedRule struct{}
@@ -32,9 +34,9 @@ func (r *JSONGeneratedRule) ShouldApply(node ast.Node) bool {
 		return false
 	}
 	for _, col := range stmt.Cols {
-        if isJSONGenerated(col) {
-            return true
-        }
+		if isJSONGenerated(col) {
+			return true
+		}
 	}
 	return false
 }
@@ -45,9 +47,9 @@ func (r *JSONGeneratedRule) ShouldApply(node ast.Node) bool {
 func (r *JSONGeneratedRule) Apply(node ast.Node) (ast.Node, error) {
 	stmt := node.(*ast.CreateTableStmt)
 	for _, col := range stmt.Cols {
-        if !isJSONGenerated(col) {
-            continue
-        }
+		if !isJSONGenerated(col) {
+			continue
+		}
 		opts := col.Options[:0]
 		for _, opt := range col.Options {
 			if opt.Tp == ast.ColumnOptionGenerated {

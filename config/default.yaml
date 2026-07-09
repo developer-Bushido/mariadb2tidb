@@ -1,7 +1,10 @@
 input_dir: ./DUMPLING
 output_dir: ./LIGHTNING
+# Empty enabled_rules means all rules are enabled (minus disabled_rules).
 enabled_rules: []
-disabled_rules: []
+# JsonGenerated is only needed for legacy TiDB targets; modern TiDB (v6.3+)
+# supports JSON functions in generated columns.
+disabled_rules: [JsonGenerated]
 strict_mode: true
 preserve_comments: true
 formatting:
@@ -16,3 +19,12 @@ charset_mappings:
 collation_mappings:
   latin1_swedish_ci: utf8mb4_0900_ai_ci
   utf8mb4_unicode_*: utf8mb4_0900_ai_ci
+# Function names kept in DEFAULT clauses; all other function defaults are
+# stripped. Extend when targeting TiDB >= v8.0.0 (expression defaults).
+allowed_default_functions:
+  - current_timestamp
+  - current_date
+  - current_time
+  - now
+  - localtime
+  - localtimestamp

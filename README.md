@@ -4,14 +4,17 @@ A command-line tool that converts MariaDB schemas into TiDB-compatible SQL.
 
 ## Features
 
-- Schema transformation to TiDB dialect
-- Database extraction from multi-DB dumps
-- Parallel import to TiDB
-- Validation and diff generation
+- Rule-based schema transformation to the TiDB dialect (collations, index key
+  length limits, TEXT/BLOB defaults, `JSON_VALID` checks, UUID columns — see
+  [docs/RULES.md](docs/RULES.md))
+- Recursive directory transformation with parallel workers
+- Output validation against the TiDB parser
+- Rules verified against the [TiDB documentation](https://docs.pingcap.com/tidb/stable/);
+  defaults target TiDB ≥ v7.4 (configurable)
 
 ## Installation
 
-Requires Go 1.24+.
+Requires Go 1.25+.
 
 Quick install (latest):
 ```bash
@@ -28,32 +31,52 @@ make build
 
 ## Usage
 
-Transform a MariaDB schema:
+Transform a MariaDB schema dump:
 
 ```bash
 mariadb2tidb transform schema.sql -o schema_tidb.sql
 ```
 
-You can also define default input and output directories in a YAML config file:
+Transform a directory tree of `.sql` files (e.g. a Dumpling output directory):
 
-```yaml
-input_dir: ./DUMPLING
-output_dir: ./LIGHTNING
+```bash
+mariadb2tidb transform ./DUMPLING -o ./LIGHTNING --workers 8
 ```
 
-Run commands with `--config` to read these paths.
+Validate that a file parses with the TiDB parser:
 
-See `mariadb2tidb --help` for all commands.
+```bash
+mariadb2tidb validate schema_tidb.sql
+```
+
+See `mariadb2tidb --help` for all commands, and
+[scripts/migrate-mariadb-to-tidb.sh](scripts/migrate-mariadb-to-tidb.sh) for a
+full dump → transform → load pipeline wrapper.
 
 ### Configuration file
-Minimal `config/default.yaml` example:
+
+Run commands with `--config` to override the defaults
+([config/default.yaml](config/default.yaml)):
+
 ```yaml
 input_dir: ./DUMPLING
 output_dir: ./LIGHTNING
-enabled_rules: []
-disabled_rules: []
-strict_mode: true
+enabled_rules: []                  # empty = all rules
+disabled_rules: [JsonGenerated]    # modern TiDB supports JSON generated columns
+charset_mappings:
+  latin1:
+    target_charset: utf8mb4
+    target_collation: utf8mb4_0900_ai_ci
+collation_mappings:
+  latin1_swedish_ci: utf8mb4_0900_ai_ci
+  utf8mb4_unicode_*: utf8mb4_0900_ai_ci
+allowed_default_functions:         # kept in DEFAULT clauses; others stripped
+  - current_timestamp
+  - now
 ```
+
+Targeting TiDB older than v7.4? Map collations to `utf8mb4_general_ci`
+instead of `utf8mb4_0900_ai_ci`.
 
 ## Documentation
 
@@ -65,14 +88,22 @@ strict_mode: true
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### Development
-- Requirements: Go 1.24+.
+- Requirements: Go 1.25+.
 - Format/Vet/Test:
   ```bash
   make fmt vet test
   ```
-- Lint (via golangci-lint):
+- Lint (golangci-lint v2):
   ```bash
   golangci-lint run
+  ```
+- Vulnerability scan:
+  ```bash
+  make vulncheck
+  ```
+- Regenerate golden test files after intentional behavior changes:
+  ```bash
+  go test ./test -run TestGolden -update
   ```
 - Build with version metadata:
   ```bash

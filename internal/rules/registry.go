@@ -1,8 +1,6 @@
 package rules
 
 import (
-	"sort"
-
 	"github.com/developer-Bushido/mariadb2tidb/internal/config"
 	"github.com/developer-Bushido/mariadb2tidb/internal/utils"
 	"go.uber.org/zap"
@@ -21,7 +19,6 @@ func NewRegistry(cfg *config.Config) *Registry {
 		logger: utils.GetLogger(),
 	}
 
-	// Register default rules (currently empty stubs)
 	registry.registerDefaultRules(cfg)
 
 	return registry
@@ -85,32 +82,27 @@ type RuleInfo struct {
 	Priority    int
 }
 
-// registerDefaultRules registers the default set of transformation rules
+// registerDefaultRules registers the default set of transformation rules,
+// honoring the enabled_rules/disabled_rules configuration.
 func (r *Registry) registerDefaultRules(cfg *config.Config) {
 	r.logger.Info("Registering default rules")
 
-	// For now, register empty stubs for all planned rules
-	// In future iterations, these will be replaced with actual implementations
-
 	defaultRules := []Rule{
-		// T-0002: Collation rule (highest priority for charset handling)
+		// Collation rule (highest priority: charset handling affects other rules)
 		NewCollationRule(cfg),
-		// T-0004: KeyLength rule
 		&KeyLengthRule{},
-		// Handle missing prefix lengths on indexed text columns
 		&IndexPrefixRule{},
 		&TextBlobDefaultRule{},
 		&JSONCheckRule{},
-		&FunctionDefaultRule{},
+		NewFunctionDefaultRule(cfg),
 		&JSONGeneratedRule{},
 	}
 
 	for _, rule := range defaultRules {
+		if cfg != nil && !cfg.IsRuleEnabled(rule.Name()) {
+			r.logger.Info("Skipping disabled rule", zap.String("name", rule.Name()))
+			continue
+		}
 		r.Register(rule)
 	}
-
-	// Sort rules by priority to ensure correct order
-	sort.Slice(r.rules, func(i, j int) bool {
-		return r.rules[i].Priority() < r.rules[j].Priority()
-	})
 }

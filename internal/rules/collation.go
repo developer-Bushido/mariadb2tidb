@@ -1,3 +1,5 @@
+// Package rules implements the individual MariaDB-to-TiDB transformation
+// rules applied by the engine, plus the registry that orders them.
 package rules
 
 import (

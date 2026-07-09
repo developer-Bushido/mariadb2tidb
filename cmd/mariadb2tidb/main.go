@@ -20,10 +20,14 @@ var (
 	rootCmd = &cobra.Command{
 		Use:   "mariadb2tidb",
 		Short: "MariaDB to TiDB migration tool",
-		Long: `A command-line tool for migrating MariaDB schemas and data to TiDB.
-Provides functionality for schema transformation, data extraction, and parallel import.`,
+		Long: `A command-line tool for migrating MariaDB schemas to TiDB.
+Transforms schema dumps with a rule-based engine and validates the result
+against the TiDB parser.`,
 		Version: version,
-            PersistentPreRun: func(_ *cobra.Command, _ []string) {
+		// Errors are reported once in main; keep cobra from printing them twice.
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
 			if noColor {
 				pterm.DisableColor()
 			}
@@ -43,10 +47,7 @@ func init() {
 	// Add subcommands
 	rootCmd.AddCommand(transformCmd)
 	rootCmd.AddCommand(transformDirCmd)
-	rootCmd.AddCommand(extractCmd)
-	rootCmd.AddCommand(importCmd)
 	rootCmd.AddCommand(validateCmd)
-	rootCmd.AddCommand(diffCmd)
 	rootCmd.AddCommand(versionCmd)
 }
 

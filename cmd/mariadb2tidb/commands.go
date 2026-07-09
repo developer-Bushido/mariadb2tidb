@@ -1,3 +1,5 @@
+// Command mariadb2tidb converts MariaDB schema dumps into TiDB-compatible
+// SQL using a rule-based transformation engine.
 package main
 
 import (
@@ -178,63 +180,26 @@ var transformDirCmd = &cobra.Command{
 	},
 }
 
-var extractCmd = &cobra.Command{
-	Use:   "extract [input.sql]",
-	Short: "Extract specific database from multi-database SQL file",
-	Long:  `Extract a specific database schema from a SQL file containing multiple databases.`,
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		inputFile := args[0]
-		database, _ := cmd.Flags().GetString("database")
-		outputFile, _ := cmd.Flags().GetString("output")
-
-		pterm.Info.Printfln("Extracting database '%s' from %s -> %s (stub implementation)", database, inputFile, outputFile)
-		return nil
-	},
-}
-
-var importCmd = &cobra.Command{
-	Use:   "import [schema.sql]",
-	Short: "Import schema/data to TiDB with parallel execution",
-	Long:  `Import schema and data to TiDB database using parallel connections for better performance.`,
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		schemaFile := args[0]
-		host, _ := cmd.Flags().GetString("host")
-		port, _ := cmd.Flags().GetInt("port")
-		parallel, _ := cmd.Flags().GetInt("parallel")
-
-		pterm.Info.Printfln("Importing %s to %s:%d with %d parallel connections (stub implementation)",
-			schemaFile, host, port, parallel)
-		return nil
-	},
-}
-
 var validateCmd = &cobra.Command{
 	Use:   "validate [schema.sql]",
-	Short: "Validate SQL schema for TiDB compatibility",
-	Long:  `Validate that the SQL schema is compatible with TiDB and report any issues.`,
-	Args:  cobra.ExactArgs(1),
+	Short: "Validate that a SQL file parses with the TiDB parser",
+	Long: `Parse the SQL file with the TiDB parser (no preprocessing applied) and
+report statements that fail to parse. Useful for checking transformed output
+before loading it into TiDB.`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		schemaFile := args[0]
 
-		pterm.Info.Printfln("Validating %s for TiDB compatibility (stub implementation)", schemaFile)
-		return nil
-	},
-}
-
-var diffCmd = &cobra.Command{
-	Use:   "diff [original.sql] [transformed.sql]",
-	Short: "Compare two SQL files and generate diff report",
-	Long:  `Generate a human-readable diff report between original and transformed SQL files.`,
-	Args:  cobra.ExactArgs(2),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		originalFile := args[0]
-		transformedFile := args[1]
-		outputFile, _ := cmd.Flags().GetString("output")
-
-		pterm.Info.Printfln("Generating diff between %s and %s -> %s (stub implementation)",
-			originalFile, transformedFile, outputFile)
+		loader := parser.NewLoader()
+		count, warns, err := loader.ValidateFile(schemaFile)
+		for _, warn := range warns {
+			pterm.Warning.Printfln("%v", warn)
+		}
+		if err != nil {
+			return fmt.Errorf("validation failed for %s: %w", schemaFile, err)
+		}
+		pterm.Success.Printfln("%s: %d statements parsed successfully (%d warnings)",
+			schemaFile, count, len(warns))
 		return nil
 	},
 }
@@ -251,19 +216,6 @@ func init() {
 	transformDirCmd.Flags().IntP("workers", "w", 4, "Number of parallel workers")
 	transformDirCmd.Flags().Duration("timeout", 0, "Optional timeout, e.g. 30m")
 	transformDirCmd.Flags().String("config", "", "Path to YAML configuration file")
-
-	// Extract command flags
-	extractCmd.Flags().String("database", "", "Database name to extract (required)")
-	extractCmd.Flags().StringP("output", "o", "", "Output file (default: stdout)")
-	extractCmd.MarkFlagRequired("database")
-
-	// Import command flags
-	importCmd.Flags().String("host", "localhost", "TiDB host")
-	importCmd.Flags().Int("port", 4000, "TiDB port")
-	importCmd.Flags().Int("parallel", 8, "Number of parallel connections")
-
-	// Diff command flags
-	diffCmd.Flags().StringP("output", "o", "", "Output file (default: stdout)")
 }
 
 // versionCmd prints detailed version information including commit and build date

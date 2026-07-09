@@ -1,22 +1,17 @@
--- Test fixture for latin1_swedish_ci collation transformations
--- These should be transformed to utf8mb4_0900_ai_ci
+create table legacy_table (
+	id INT not null auto_increment,
+	`name` VARCHAR(100) collate utf8mb4_0900_ai_ci not null,
+	description TEXT collate utf8mb4_0900_ai_ci,
+	primary key (id)
+) ENGINE InnoDB,
+  charset UTF8MB4,
+  COLLATE UTF8MB4_0900_AI_CI;
 
-CREATE TABLE legacy_table (
-  id int NOT NULL AUTO_INCREMENT,
-  name varchar(100) COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  description text COLLATE utf8mb4_0900_ai_ci,
-  PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-CREATE TABLE another_legacy (
-  id int NOT NULL AUTO_INCREMENT,
-  old_field varchar(50) COLLATE utf8mb4_0900_ai_ci,
-  PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-CREATE TABLE mixed_legacy (
-  id int NOT NULL AUTO_INCREMENT,
-  legacy_name varchar(100) COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  modern_name varchar(100) NOT NULL,
-  PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+create table mixed_legacy (
+	id INT not null auto_increment,
+	legacy_name VARCHAR(100) collate utf8mb4_0900_ai_ci not null,
+	modern_name VARCHAR(100) not null,
+	primary key (id)
+) ENGINE InnoDB,
+  charset UTF8MB4,
+  COLLATE UTF8MB4_0900_AI_CI;

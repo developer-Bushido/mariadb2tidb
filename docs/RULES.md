@@ -2,9 +2,9 @@
 
 ## Overview
 
-The mariadb2tidb tool uses a rule-based system to transform MariaDB SQL schemas into TiDB-compatible format. Each rule addresses a specific compatibility issue between MariaDB and TiDB.
+The mariadb2tidb tool uses a rule-based system to transform MariaDB SQL schemas into a TiDB-compatible format. Each rule addresses a specific compatibility difference, with the relevant TiDB documentation linked.
 
-## Rule System Architecture
+## Rule System
 
 ### Rule Interface
 All rules implement the `Rule` interface:
@@ -12,143 +12,73 @@ All rules implement the `Rule` interface:
 type Rule interface {
     Name() string                          // Unique rule identifier
     Description() string                   // Human-readable description
-    Priority() int                         // Execution order (lower = higher priority)
-    ShouldApply(node ast.Node) bool       // Determine if rule applies to AST node
+    Priority() int                         // Execution order (lower = earlier)
+    ShouldApply(node ast.Node) bool        // Determine if rule applies to AST node
     Apply(node ast.Node) (ast.Node, error) // Transform the AST node
 }
 ```
 
-### Rule Registry
-- Rules are registered in priority order
-- Lower priority numbers execute first
-- Rules are applied once per AST traversal
+### Registry
+- Rules run in priority order (lower number first)
+- `enabled_rules` / `disabled_rules` in the YAML config control which rules are active; an empty `enabled_rules` list means "all rules"
 
-## Rules Implementation Status
+## Active Rules
 
-### ✅ Completed Rules
-
-### 1. Collation (Priority: 10) - T-0002
-**Status**: ✅ Implemented
-**Description**: Transform MariaDB collations to TiDB compatible ones
-- `utf8mb4_unicode_*` → `utf8mb4_0900_ai_ci`
+### Collation (Priority: 100)
+Normalizes charsets and collations using the configurable `charset_mappings` / `collation_mappings`:
+- `utf8mb4_unicode_*` → `utf8mb4_0900_ai_ci` (covers `utf8mb4_unicode_520_ci`, which TiDB does not support)
 - `latin1_swedish_ci` → `utf8mb4_0900_ai_ci`
 - `DEFAULT CHARSET=latin1` → `DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`
 
-### 2. KeyLength (Priority: 300) - T-0004
-**Status**: ✅ Implemented
-**Description**: Cap oversized `VARCHAR` columns at 768 characters
+TiDB supports `utf8mb4_0900_ai_ci` as a client/default collation from **v7.4.0**; target older versions by overriding the mappings (e.g. to `utf8mb4_general_ci`).
+Docs: <https://docs.pingcap.com/tidb/stable/character-set-and-collation>
 
-### 3. TextBlobDefaults (Priority: 400)
-**Status**: ✅ Implemented
-**Description**: Remove default values from TEXT/BLOB/JSON columns
+### KeyLength (Priority: 300)
+Caps **index key prefix lengths** at 768 characters (3072 bytes in utf8mb4, TiDB's default `max-index-length`). Applies to explicit oversized prefixes and to indexes over `CHAR`/`VARCHAR` columns wider than 768 characters. Column definitions are never truncated — TiDB supports `VARCHAR` up to 16383 characters.
+Docs: <https://docs.pingcap.com/tidb/stable/tidb-limitations>
 
-### 4. JsonCheck (Priority: 500)
-**Status**: ✅ Implemented
-**Description**: Remove JSON_VALID check constraints
+### IndexPrefix (Priority: 350)
+Adds a 255-character prefix to indexed `TEXT`/`BLOB` columns that lack one; TiDB (like MySQL) cannot index these types without an explicit prefix.
 
-### 5. FunctionDefault (Priority: 600)
-**Status**: ✅ Implemented
-**Description**: Remove unsupported function-based default values
+### TextBlobDefaults (Priority: 400)
+Removes `DEFAULT` values from `TEXT`/`BLOB`/`JSON` columns. TiDB rejects literal defaults on these types (expression defaults exist from v8.0.0, but stripping keeps output loadable on all supported versions).
+Docs: <https://docs.pingcap.com/tidb/stable/data-type-default-values>
 
-### 6. JsonGenerated (Priority: 700)
-**Status**: ✅ Implemented
-**Description**: Convert JSON-based generated columns into regular columns
+### JsonCheck (Priority: 500)
+Removes `CHECK (JSON_VALID(...))` constraints that MariaDB emits for JSON columns (MariaDB stores JSON as `LONGTEXT` + check constraint).
 
-### 📋 Planned Rules (Implementation Order)
+### FunctionDefault (Priority: 600)
+Removes function-based `DEFAULT` values not in the allowlist (`allowed_default_functions` in the config; defaults to the `CURRENT_TIMESTAMP` family: `current_timestamp`, `current_date`, `current_time`, `now`, `localtime`, `localtimestamp`). Extend the allowlist when targeting TiDB ≥ v8.0.0, which supports more default expressions.
+Docs: <https://docs.pingcap.com/tidb/stable/data-type-default-values>
 
-### 4. IntegerWidth (Priority: 400)
-**Status**: Planned
-**Description**: Remove integer display width specifications
-- `INT(11)` → `INT`
-- `BIGINT(20)` → `BIGINT`
+### JsonGenerated (Priority: 700) — disabled by default
+Converts generated columns that use JSON functions into regular columns. Modern TiDB (v6.3+) supports JSON functions in generated columns, so this rule is only needed for legacy targets — enable it via `enabled_rules` or remove `JsonGenerated` from `disabled_rules`.
+Docs: <https://docs.pingcap.com/tidb/stable/generated-columns>
 
-### 7. ZeroTimestamp (Priority: 70)
-**Status**: Planned
-**Description**: Handle zero timestamp values
-- Transform `'0000-00-00 00:00:00'` defaults
+## Loader Preprocessing (not rules)
 
-### 8. UUIDType (Priority: 80)
-**Status**: Planned
-**Description**: Transform UUID data types
-- Map MariaDB UUID functions to TiDB equivalents
+Some MariaDB-only syntax cannot be represented in the TiDB parser AST, so the loader fixes it textually before parsing:
+- `UUID` column type → `CHAR(36)` (function calls and identifiers named `uuid` are left alone); `NOT NULL` uuid columns get `DEFAULT ''`; unique keys named `uuid` are renamed to `uuid_key`
+- Table encryption options (`ENCRYPTED=YES ENCRYPTION_KEY_ID=n`) are dropped
+- Configured charset/collation mappings are applied textually as a safety net
 
-### 9. MariaDBSpecific (Priority: 90)
-**Status**: Planned
-**Description**: Remove MariaDB-specific syntax
-- Storage engine options not supported by TiDB
-- MariaDB-only features
+## Rule Constraints
 
-### 10. Constraints (Priority: 100)
-**Status**: Planned
-**Description**: Transform constraint definitions
-- Foreign key constraint handling
-- Check constraint syntax differences
-
-### 11. TrailingComma (Priority: 110)
-**Status**: Planned
-**Description**: Remove trailing commas
-- Clean up syntax formatting
-
-### 12. VersionMacros (Priority: 130)
-**Status**: Planned
-**Description**: Transform version-specific macros
-- Handle conditional SQL based on database version
-
-### 13. AutoIncrementValues (Priority: 140)
-**Status**: Planned
-**Description**: Adjust auto-increment starting values
-- Handle differences in auto-increment behavior
-
-### 14. OnUpdateCurrentTimestamp (Priority: 150)
-**Status**: Planned
-**Description**: Transform ON UPDATE CURRENT_TIMESTAMP
-- Ensure proper timestamp update behavior
-
-### 15. IndexType (Priority: 160)
-**Status**: Planned
-**Description**: Transform index type specifications
-- Map MariaDB index types to TiDB equivalents
-
-### 16. QualifiedNames (Priority: 170)
-**Status**: Planned
-**Description**: Handle qualified table/column names
-- Ensure proper name resolution
-
-## Rule Development Guidelines
-
-### Implementation Pattern
-1. Create rule struct implementing `Rule` interface
-2. Register rule in registry with appropriate priority
-3. Add unit tests for the rule
-4. Add integration tests with legacy script comparison
-
-### Testing Requirements
-- Unit tests for rule logic
-- Integration tests with fixture files
-- Comparison with legacy script output
-- Edge case handling
-
-### Rule Constraints
 - Rules must be idempotent (applying twice = applying once)
 - Rules should not modify nodes they don't handle
-- Rules must preserve SQL semantics
-- Rules should provide clear error messages
+- Rules must preserve data: never shrink column types or drop columns
+- Rules should be covered by unit tests **and** a golden fixture
 
 ## Adding New Rules
 
-1. Implement the `Rule` interface
-2. Add to `CreateStubRules()` in `stubs.go` (replace stub)
-3. Register in priority order
-4. Add comprehensive tests
-5. Update this documentation
+1. Implement the `Rule` interface in `internal/rules/`
+2. Register it in `registerDefaultRules` (`registry.go`) with an appropriate priority
+3. Add unit tests and a golden fixture (`test/fixtures/<name>.sql`, then `go test ./test -run TestGolden -update`)
+4. Update this documentation
 
-## Next Task: T-0003 KeyLength Rule
+## Candidate Future Rules
 
-Based on AI_CONTEXT.yml task progression protocol, T-0003 should implement:
-
-**KeyLength Rule (Priority: 20)**
-- Transform KEY declarations with length > 768 characters  
-- Add substring operations for varchar indexes per TiDB limits
-- Handle both single and composite key constraints
-- Reference: legacy script lines 50-52 in universal_tidb_transform.sh
-- Files: `internal/rules/keylength.go`, tests, fixtures for various key scenarios 
+- **ZeroTimestamp**: handle `'0000-00-00 00:00:00'` defaults (TiDB rejects them with default SQL mode)
+- **AutoRandom**: optionally convert `AUTO_INCREMENT` primary keys to `AUTO_RANDOM` to avoid write hotspots
+- **ShardRowID**: inject `SHARD_ROW_ID_BITS` for tables without a clustered primary key
+- **Sequence/Trigger stripping**: MariaDB sequences and triggers are not supported by TiDB
