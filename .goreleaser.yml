@@ -1,3 +1,5 @@
+version: 2
+
 project_name: mariadb2tidb
 
 builds:
@@ -18,8 +20,8 @@ builds:
 
 archives:
   - id: archive
-    builds: [cli]
-    format: tar.gz
+    ids: [cli]
+    formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
@@ -31,4 +33,3 @@ changelog:
 
 release:
   draft: true
-

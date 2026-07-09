@@ -25,6 +25,7 @@ type Rule interface {
 // RuleCategory represents different categories of transformation rules
 type RuleCategory string
 
+// Rule categories group transformations by the schema aspect they touch.
 const (
 	CategoryDataType      RuleCategory = "datatype"
 	CategoryConstraint    RuleCategory = "constraint"

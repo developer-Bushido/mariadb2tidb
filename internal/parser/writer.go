@@ -11,6 +11,10 @@ import (
 	sqlparser "vitess.io/vitess/go/vt/sqlparser"
 )
 
+// charsetEmptyDefaultRegex matches charset-prefixed empty string defaults
+// (a DEFAULT _utf8mb4 prefix before an empty string literal) that the restore step emits.
+var charsetEmptyDefaultRegex = regexp.MustCompile(`(?i)DEFAULT\s+_utf8mb4\s+''`)
+
 // Writer handles writing AST back to formatted SQL
 type Writer struct {
 	logger *zap.Logger
@@ -73,7 +77,7 @@ func (w *Writer) WriteStatement(stmt ast.StmtNode) (string, error) {
 	}
 
 	// Remove charset prefixes on empty string defaults
-	result = regexp.MustCompile(`(?i)DEFAULT\s+_utf8mb4\s+''`).ReplaceAllString(result, "DEFAULT ''")
+	result = charsetEmptyDefaultRegex.ReplaceAllString(result, "DEFAULT ''")
 
 	// Ensure statement ends with semicolon
 	if !strings.HasSuffix(result, ";") {

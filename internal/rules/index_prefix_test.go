@@ -31,15 +31,18 @@ func TestIndexPrefixRule(t *testing.T) {
 	require.NoError(t, err)
 	newTable := newNode.(*ast.CreateTableStmt)
 
-	// idx_word on TEXT should use 255 prefix
+	// idx_word on TEXT should get the default 255 prefix
 	idxWord := newTable.Constraints[0]
 	assert.Equal(t, 255, idxWord.Keys[0].Length)
 
-	// uniq_name on VARCHAR(32) should use length 32
+	// uniq_name on VARCHAR(32) needs no prefix: TiDB indexes it as-is
 	uniqName := newTable.Constraints[1]
-	assert.Equal(t, 32, uniqName.Keys[0].Length)
+	assert.Less(t, uniqName.Keys[0].Length, 1)
 
 	// explicit prefix should remain unchanged
 	explicit := newTable.Constraints[2]
 	assert.Equal(t, 10, explicit.Keys[0].Length)
+
+	// Rule is idempotent: applying again changes nothing
+	assert.False(t, rule.ShouldApply(newTable))
 }

@@ -1,4 +1,4 @@
-.PHONY: build test clean fmt vet lint ci
+.PHONY: build test clean fmt vet lint vulncheck bench ci install-deps
 
 # Version metadata (overridable)
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -29,7 +29,10 @@ vet:
 lint:
 	golangci-lint run
 
+vulncheck:
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
 bench:
-	go test -bench=. ./... 
+	go test -bench=. ./...
 
 ci: fmt vet test

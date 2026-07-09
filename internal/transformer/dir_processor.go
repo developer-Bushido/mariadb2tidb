@@ -1,3 +1,6 @@
+// Package transformer wires the parser and rules together: the Engine
+// applies rules to parsed statements, and DirProcessor runs the pipeline
+// over directory trees in parallel.
 package transformer
 
 import (
@@ -80,20 +83,16 @@ func (p *DirProcessor) ProcessDirectory(ctx context.Context, inputDir, outputDir
 	g.SetLimit(workers)
 
 	for _, file := range files {
-		file := file // capture range variable
 		g.Go(func() error {
 			if err := p.processFile(ctx, inputDir, outputDir, file); err != nil {
 				return err
 			}
-			bar.Add(1)
+			_ = bar.Add(1)
 			return nil
 		})
 	}
 
-	if err := g.Wait(); err != nil {
-		return err
-	}
-	return nil
+	return g.Wait()
 }
 
 func (p *DirProcessor) processFile(ctx context.Context, inputDir, outputDir, filePath string) error {

@@ -1,9 +1,12 @@
+// Package utils holds small shared helpers, currently the process-wide
+// zap logger.
 package utils
 
 import (
 	"go.uber.org/zap"
 )
 
+// Logger is the process-wide logger; use GetLogger instead of reading it directly.
 var Logger *zap.Logger
 
 // InitLogger initializes the global logger

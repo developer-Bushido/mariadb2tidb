@@ -5,7 +5,19 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      go-deps:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # vitess v2.x "+incompatible" tags are not a usable upgrade path;
+      # stay on v0.22.x patch releases.
+      - dependency-name: "vitess.io/vitess"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]

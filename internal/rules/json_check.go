@@ -6,15 +6,20 @@ import (
 	"github.com/pingcap/tidb/pkg/parser/ast"
 )
 
-// JsonCheckRule removes CHECK constraints that use JSON_VALID()
-// Handles both column-level and table-level check constraints
+// JSONCheckRule removes CHECK constraints that use JSON_VALID().
+// Handles both column-level and table-level check constraints.
 // Reference: Step 5 in legacy universal_tidb_transform.sh
 type JSONCheckRule struct{}
 
+// Name returns rule name
 func (r *JSONCheckRule) Name() string { return "JsonCheck" }
+
+// Description returns description
 func (r *JSONCheckRule) Description() string {
 	return "Remove JSON_VALID check constraints"
 }
+
+// Priority defines rule execution order
 func (r *JSONCheckRule) Priority() int { return 500 }
 
 // ShouldApply determines if node contains JSON_VALID check

@@ -1,9 +1,13 @@
+// Package config defines the YAML-backed configuration for the
+// transformation engine: directories, rule toggles, and charset/collation
+// mappings.
 package config
 
 import (
-    "os"
+	"fmt"
+	"os"
 
-    yaml "gopkg.in/yaml.v3"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // Config holds configuration for the transformation engine
@@ -34,6 +38,11 @@ type Config struct {
 
 	// CollationMappings defines how to convert collations
 	CollationMappings map[string]string `yaml:"collation_mappings"`
+
+	// AllowedDefaultFunctions lists function names the FunctionDefault rule
+	// keeps in DEFAULT clauses; anything else is stripped.
+	// https://docs.pingcap.com/tidb/stable/data-type-default-values
+	AllowedDefaultFunctions []string `yaml:"allowed_default_functions"`
 }
 
 // FormattingConfig controls SQL output formatting
@@ -60,10 +69,13 @@ type CharsetMapping struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		InputDir:         "",
-		OutputDir:        "",
-		EnabledRules:     []string{}, // Empty means all rules enabled
-		DisabledRules:    []string{},
+		InputDir:     "",
+		OutputDir:    "",
+		EnabledRules: []string{}, // Empty means all rules enabled
+		// JsonGenerated is off by default: modern TiDB (v6.3+) supports JSON
+		// functions in generated columns, so converting them to plain columns
+		// is only needed for legacy targets.
+		DisabledRules:    []string{"JsonGenerated"},
 		StrictMode:       true,
 		PreserveComments: true,
 		FormattingOptions: FormattingConfig{
@@ -81,6 +93,14 @@ func DefaultConfig() *Config {
 		CollationMappings: map[string]string{
 			"latin1_swedish_ci": "utf8mb4_0900_ai_ci",
 			"utf8mb4_unicode_*": "utf8mb4_0900_ai_ci",
+		},
+		AllowedDefaultFunctions: []string{
+			"current_timestamp",
+			"current_date",
+			"current_time",
+			"now",
+			"localtime",
+			"localtimestamp",
 		},
 	}
 }
@@ -116,11 +136,11 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read config %s: %w", path, err)
 	}
 	cfg := DefaultConfig()
 	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}
 	return cfg, nil
 }
