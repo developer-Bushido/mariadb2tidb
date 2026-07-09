@@ -23,8 +23,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # Needed for tokenless (OIDC) coverage upload to Codecov
-      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -54,12 +52,33 @@ jobs:
       - name: Test
         run: go test ./... -race -count=1 -coverprofile=coverage.out -covermode=atomic
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+  coverage-badge:
+    name: coverage badge
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      # Pushes the generated badge SVG to the 'badges' branch
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          files: coverage.out
-          use_oidc: true
-        continue-on-error: true
+          go-version-file: go.mod
+          cache: true
+
+      - name: Generate coverage profile
+        run: go test ./... -count=1 -coverprofile=coverage.out -covermode=atomic
+
+      - name: Generate and publish coverage badge
+        uses: vladopajic/go-test-coverage@a93b868a4cbcbf18dc3781650fad241f0020e609 # v2.18.8
+        with:
+          profile: coverage.out
+          threshold-total: 0
+          git-token: ${{ secrets.GITHUB_TOKEN }}
+          git-branch: badges
 
   lint:
     name: golangci-lint
