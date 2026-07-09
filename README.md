@@ -1,4 +1,11 @@
-# mariadb2tidb [![CI](https://github.com/developer-Bushido/mariadb2tidb/actions/workflows/ci.yml/badge.svg)](https://github.com/developer-Bushido/mariadb2tidb/actions/workflows/ci.yml)
+# mariadb2tidb
+
+[![CI](https://github.com/developer-Bushido/mariadb2tidb/actions/workflows/ci.yml/badge.svg)](https://github.com/developer-Bushido/mariadb2tidb/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/developer-Bushido/mariadb2tidb/badge)](https://scorecard.dev/viewer/?uri=github.com/developer-Bushido/mariadb2tidb)
+[![Go Reference](https://pkg.go.dev/badge/github.com/developer-Bushido/mariadb2tidb.svg)](https://pkg.go.dev/github.com/developer-Bushido/mariadb2tidb)
+[![codecov](https://codecov.io/gh/developer-Bushido/mariadb2tidb/graph/badge.svg)](https://codecov.io/gh/developer-Bushido/mariadb2tidb)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/developer-Bushido/mariadb2tidb)](go.mod)
+[![License](https://img.shields.io/github/license/developer-Bushido/mariadb2tidb)](LICENSE)
 
 A command-line tool that converts MariaDB schemas into TiDB-compatible SQL.
 
@@ -14,7 +21,7 @@ A command-line tool that converts MariaDB schemas into TiDB-compatible SQL.
 
 ## Installation
 
-Requires Go 1.25+.
+Requires Go 1.26+.
 
 Quick install (latest):
 ```bash
@@ -88,7 +95,7 @@ instead of `utf8mb4_0900_ai_ci`.
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### Development
-- Requirements: Go 1.25+.
+- Requirements: Go 1.26+ (toolchain pinned in go.mod).
 - Format/Vet/Test:
   ```bash
   make fmt vet test
