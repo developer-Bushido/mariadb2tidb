@@ -50,11 +50,12 @@ jobs:
         run: go build ./...
 
       - name: Test
-        run: go test ./... -race -count=1 -coverprofile=coverage.out -covermode=atomic
+        run: go test ./... -race -count=1
 
   coverage-badge:
     name: coverage badge
     runs-on: ubuntu-latest
+    needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       # Pushes the generated badge SVG to the 'badges' branch
