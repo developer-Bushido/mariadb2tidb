@@ -167,7 +167,7 @@ func TestWriterHonorsFormattingConfig(t *testing.T) {
 
 	assert.Equal(t, "create table t (\n"+
 		"    id int not null default 1,\n"+
-		"    s varchar(5) default 'x'\n"+
+		"    s varchar(5) default _utf8mb4'x'\n"+
 		");", got)
 }
 
@@ -237,4 +237,44 @@ func TestWriterEscapesBackslashes(t *testing.T) {
 	require.NoError(t, err)
 	def := reparsed[0].(*ast.CreateTableStmt).Cols[0].Options[0].Expr.(ast.ValueExpr)
 	assert.Equal(t, `C:\new`, def.GetString())
+}
+
+// TestWriterKeepsCharsetIntroducers: without the introducer a literal's bytes
+// would be reinterpreted under the importing session's SET NAMES.
+func TestWriterKeepsCharsetIntroducers(t *testing.T) {
+	require.NoError(t, initTestLogger())
+
+	stmts, err := NewLoader().LoadFromString(`INSERT INTO t VALUES (_utf8mb4'café', _latin1'x', '');`)
+	require.NoError(t, err)
+	got, err := NewWriter().WriteStatement(stmts[0])
+	require.NoError(t, err)
+
+	assert.Equal(t, "INSERT INTO `t` VALUES (_UTF8MB4'café',_LATIN1'x','');", got)
+}
+
+// TestWriterEscapesNUL: a raw NUL byte in the output is rejected by the mysql
+// client outside --binary-mode.
+func TestWriterEscapesNUL(t *testing.T) {
+	require.NoError(t, initTestLogger())
+
+	stmts, err := NewLoader().LoadFromString(`INSERT INTO t VALUES ('a\0b');`)
+	require.NoError(t, err)
+	got, err := NewWriter().WriteStatement(stmts[0])
+	require.NoError(t, err)
+	assert.NotContains(t, got, "\x00")
+
+	reparsed, err := NewLoader().LoadFromString(got)
+	require.NoError(t, err)
+	v := reparsed[0].(*ast.InsertStmt).Lists[0][0].(ast.ValueExpr)
+	assert.Equal(t, "a\x00b", v.GetString())
+}
+
+func TestNewWriterWithNilConfig(t *testing.T) {
+	require.NoError(t, initTestLogger())
+
+	stmts, err := NewLoader().LoadFromString("CREATE TABLE t (id INT);")
+	require.NoError(t, err)
+	got, err := NewWriterWithConfig(nil).WriteStatement(stmts[0])
+	require.NoError(t, err)
+	assert.Equal(t, "CREATE TABLE `t` (\n  `id` INT\n);", got)
 }

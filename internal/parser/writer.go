@@ -7,6 +7,7 @@ import (
 	"github.com/developer-Bushido/mariadb2tidb/internal/utils"
 	"github.com/pingcap/tidb/pkg/parser/ast"
 	"github.com/pingcap/tidb/pkg/parser/format"
+	driver "github.com/pingcap/tidb/pkg/parser/test_driver"
 	"go.uber.org/zap"
 )
 
@@ -28,13 +29,18 @@ func NewWriter() *Writer {
 }
 
 // NewWriterWithConfig creates a new SQL writer honoring cfg.FormattingOptions.
+// A nil cfg means the default configuration.
 func NewWriterWithConfig(cfg *config.Config) *Writer {
+	if cfg == nil {
+		cfg = config.DefaultConfig()
+	}
 	opts := cfg.FormattingOptions
 
-	// String literals in the default charset (utf8mb4) are written without a
-	// redundant _utf8mb4 introducer; other introducers carry meaning and stay.
 	// Backslashes must be escaped or 'C:\\new' would load as "C:<LF>ew".
-	flags := format.RestoreStringWithoutDefaultCharset | format.RestoreStringEscapeBackslash
+	// Charset introducers (_utf8mb4'...') are kept: the parser tags every
+	// literal with one, and dropping it would make the value depend on the
+	// importing session's SET NAMES.
+	flags := format.RestoreStringEscapeBackslash
 	if opts.SingleQuoteStrings {
 		flags |= format.RestoreStringSingleQuotes
 	} else {
@@ -92,6 +98,8 @@ func (w *Writer) WriteStatements(stmts []ast.StmtNode) (string, error) {
 func (w *Writer) WriteStatement(stmt ast.StmtNode) (string, error) {
 	w.logger.Debug("Writing statement to SQL", zap.String("type", stmt.Text()))
 
+	stmt.Accept(emptyStringIntroducerStripper{})
+
 	result, err := w.restore(stmt)
 	if err != nil {
 		w.logger.Error("Failed to restore statement", zap.Error(err))
@@ -119,7 +127,26 @@ func (w *Writer) restore(node ast.Node) (string, error) {
 	if err := node.Restore(format.NewRestoreCtx(w.flags, &sb)); err != nil {
 		return "", err
 	}
-	return sb.String(), nil
+	// Restore leaves decoded NUL bytes raw, which the mysql client rejects
+	// outside --binary-mode. NUL can only occur inside string literals (it is
+	// not allowed in identifiers), where \0 is its escape.
+	return strings.ReplaceAll(sb.String(), "\x00", `\0`), nil
+}
+
+// emptyStringIntroducerStripper drops the charset introducer from empty
+// string literals: an empty string means the same in every charset, so the
+// introducer would only be noise. It mutates the AST, fine at write time.
+type emptyStringIntroducerStripper struct{}
+
+func (emptyStringIntroducerStripper) Enter(n ast.Node) (ast.Node, bool) {
+	if v, ok := n.(*driver.ValueExpr); ok && v.Kind() == driver.KindString && v.GetString() == "" {
+		v.Type.SetCharset("")
+	}
+	return n, false
+}
+
+func (emptyStringIntroducerStripper) Leave(n ast.Node) (ast.Node, bool) {
+	return n, true
 }
 
 // prettyCreateTable puts each column and constraint of a restored CREATE

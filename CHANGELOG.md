@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-22
+
 ### Fixed
 - **Output no longer drops columns or identifier quoting.** The writer
   re-parsed TiDB's restored SQL with the vitess (MySQL) parser just to
@@ -23,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Backslashes in string literals are escaped.** `DEFAULT 'C:\\new'` was
   written as `'C:\new'` (loads as a newline) and `DEFAULT '\\'` as `'\'`
   (invalid SQL); affects defaults, COMMENTs and INSERT values.
+- NUL bytes in string literals are written as `\0` instead of a raw byte,
+  which the `mysql` client rejects outside `--binary-mode`.
+- `NewDirProcessor(nil)` / `NewWriterWithConfig(nil)` use the default
+  configuration instead of panicking.
 - Output files and stdout now end with a trailing newline.
 - Preprocessor no longer panics (or inserts `default ''` at a wrong offset)
   on input with invalid UTF-8 or length-changing letters near a `char(36)`
@@ -33,7 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Output format: uppercase keywords, every identifier backtick-quoted,
   2-space indent, table options as TiDB writes them
-  (`DEFAULT CHARACTER SET = UTF8MB4`).
+  (`DEFAULT CHARACTER SET = UTF8MB4`). String literals keep their charset
+  introducer (`DEFAULT _UTF8MB4'x'`) so values don't depend on the import
+  session's `SET NAMES`; empty strings are written as plain `''`.
 - TiDB parser pinned to the v8.5.8 (LTS) release commit instead of an
   arbitrary master snapshot, so validation matches stable TiDB.
 - vitess dependency removed (and with it grpc/protobuf), closing the open

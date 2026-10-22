@@ -40,3 +40,18 @@ func TestProcessDirectory(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, strings.ToUpper(string(data2)), "T2")
 }
+
+func TestProcessDirectoryNilConfig(t *testing.T) {
+	require.NoError(t, utils.InitLogger(true))
+
+	inputDir := t.TempDir()
+	outputDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(inputDir, "a.sql"), []byte("CREATE TABLE t (id INT);"), 0o644))
+
+	p := NewDirProcessor(nil)
+	require.NoError(t, p.ProcessDirectory(context.Background(), inputDir, outputDir, 1))
+
+	data, err := os.ReadFile(filepath.Join(outputDir, "a.sql"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "CREATE TABLE `t`")
+}
