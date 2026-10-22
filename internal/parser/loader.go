@@ -4,6 +4,7 @@
 package parser
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"regexp"
@@ -106,7 +107,7 @@ func (l *Loader) LoadFromString(sql string) ([]ast.StmtNode, error) {
 	// Preprocess unsupported constructs before parsing
 	sql = l.preprocessSQL(sql)
 
-	stmts, _, err := l.parser.Parse(sql, "", "")
+	stmts, _, err := l.parse(sql)
 	if err != nil {
 		l.logger.Error("Failed to parse SQL", zap.Error(err))
 		return nil, err
@@ -209,7 +210,8 @@ func (l *Loader) preprocessSQL(sql string) string {
 			segEnd = len(rest)
 		}
 		segment := rest[:segEnd]
-		lowerSeg := strings.ToLower(segment)
+		// Byte-length-preserving lowercase: idx below indexes segment itself.
+		lowerSeg := asciiLower(segment)
 		if strings.Contains(lowerSeg, "not null") && !strings.Contains(lowerSeg, "default") {
 			idx := strings.Index(lowerSeg, "not null") + len("not null")
 			segment = segment[:idx] + " default ''" + segment[idx:]
@@ -242,8 +244,33 @@ func (l *Loader) ValidateFile(filename string) (int, []error, error) {
 // ValidateSQL parses SQL text with the TiDB parser without any preprocessing
 // and returns the statement count, parser warnings, and the first hard error.
 func (l *Loader) ValidateSQL(sql string) (int, []error, error) {
-	stmts, warns, err := l.parser.Parse(sql, "", "")
+	stmts, warns, err := l.parse(sql)
 	return len(stmts), warns, err
+}
+
+// parse runs the TiDB parser, converting its panics into errors: the
+// lightweight test_driver panics on some literals (e.g. decimals longer than
+// MyDecimal's 81 digits), and one bad value must not crash a whole run.
+func (l *Loader) parse(sql string) (stmts []ast.StmtNode, warns []error, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			stmts, warns, err = nil, nil, fmt.Errorf("TiDB parser panicked: %v", r)
+		}
+	}()
+	return l.parser.Parse(sql, "", "")
+}
+
+// asciiLower lowercases ASCII letters only. Unlike strings.ToLower it never
+// changes the byte length (invalid UTF-8, or letters such as U+0130), so
+// offsets found in the result are valid in the input.
+func asciiLower(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if c >= 'A' && c <= 'Z' {
+			b[i] = c + ('a' - 'A')
+		}
+	}
+	return string(b)
 }
 
 // isSpace reports whether b is an ASCII whitespace character.

@@ -100,7 +100,7 @@ func (p *DirProcessor) processFile(ctx context.Context, inputDir, outputDir, fil
 		return err
 	}
 	loader := intparser.NewLoaderWithConfig(p.config)
-	writer := intparser.NewWriter()
+	writer := intparser.NewWriterWithConfig(p.config)
 
 	stmts, err := loader.LoadFromFile(filePath)
 	if err != nil {

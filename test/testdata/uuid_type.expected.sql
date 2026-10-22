@@ -1,8 +1,7 @@
-create table sessions (
-	id INT not null auto_increment,
-	session_uuid CHAR(36) not null DEFAULT '',
-	note VARCHAR(100) default null,
-	primary key (id),
-	unique key uuid_key (session_uuid)
-) ENGINE InnoDB,
-  charset UTF8MB4;
+CREATE TABLE `sessions` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `session_uuid` CHAR(36) NOT NULL DEFAULT '',
+  `note` VARCHAR(100) DEFAULT NULL,
+  PRIMARY KEY(`id`),
+  UNIQUE `uuid_key`(`session_uuid`)
+) ENGINE = InnoDB DEFAULT CHARACTER SET = UTF8MB4;

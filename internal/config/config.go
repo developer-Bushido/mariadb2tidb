@@ -24,12 +24,6 @@ type Config struct {
 	// DisabledRules is a list of rule names to disable
 	DisabledRules []string `yaml:"disabled_rules"`
 
-	// StrictMode determines if transformation should fail on any error
-	StrictMode bool `yaml:"strict_mode"`
-
-	// PreserveComments determines if comments should be preserved
-	PreserveComments bool `yaml:"preserve_comments"`
-
 	// FormattingOptions controls output formatting
 	FormattingOptions FormattingConfig `yaml:"formatting"`
 
@@ -53,7 +47,8 @@ type FormattingConfig struct {
 	// UppercaseKeywords determines if SQL keywords should be uppercase
 	UppercaseKeywords bool `yaml:"uppercase_keywords"`
 
-	// BackquoteIdentifiers determines if identifiers should be backtick-quoted
+	// BackquoteIdentifiers determines if identifiers should be backtick-quoted.
+	// Disabling it emits bare names, which breaks DDL for reserved words.
 	BackquoteIdentifiers bool `yaml:"backquote_identifiers"`
 
 	// SingleQuoteStrings determines if strings should use single quotes
@@ -75,9 +70,7 @@ func DefaultConfig() *Config {
 		// JsonGenerated is off by default: modern TiDB (v6.3+) supports JSON
 		// functions in generated columns, so converting them to plain columns
 		// is only needed for legacy targets.
-		DisabledRules:    []string{"JsonGenerated"},
-		StrictMode:       true,
-		PreserveComments: true,
+		DisabledRules: []string{"JsonGenerated"},
 		FormattingOptions: FormattingConfig{
 			IndentSize:           2,
 			UppercaseKeywords:    true,

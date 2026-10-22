@@ -1,6 +1,4 @@
-create table t (
-	url VARCHAR(1023) not null,
-	unique key url (url(768))
-) ENGINE InnoDB,
-  charset UTF8MB4,
-  COLLATE UTF8MB4_0900_AI_CI;
+CREATE TABLE `t` (
+  `url` VARCHAR(1023) NOT NULL,
+  UNIQUE `url`(`url`(768))
+) ENGINE = InnoDB DEFAULT CHARACTER SET = UTF8MB4 DEFAULT COLLATE = UTF8MB4_0900_AI_CI;

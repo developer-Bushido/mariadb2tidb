@@ -5,8 +5,8 @@ enabled_rules: []
 # JsonGenerated is only needed for legacy TiDB targets; modern TiDB (v6.3+)
 # supports JSON functions in generated columns.
 disabled_rules: [JsonGenerated]
-strict_mode: true
-preserve_comments: true
+# Output is written by the TiDB parser itself; backquote_identifiers: false
+# emits bare names and breaks DDL that uses reserved words as identifiers.
 formatting:
   indent_size: 2
   uppercase_keywords: true

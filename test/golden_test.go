@@ -42,10 +42,9 @@ func TestGolden(t *testing.T) {
 			transformed, err := engine.Transform(stmts)
 			require.NoError(t, err, "transform")
 
-			writer := parser.NewWriter()
+			writer := parser.NewWriterWithConfig(cfg)
 			got, err := writer.WriteStatements(transformed)
 			require.NoError(t, err, "write")
-			got += "\n"
 
 			// The output must itself be valid SQL for the TiDB parser,
 			// without any loader preprocessing masking problems.

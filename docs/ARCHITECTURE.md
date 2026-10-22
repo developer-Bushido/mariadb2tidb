@@ -12,7 +12,7 @@ The mariadb2tidb tool is a command-line application that transforms MariaDB SQL 
 
 ### Parser Layer (`internal/parser/`)
 - **loader.go**: Loads SQL from files, strings, or readers using the TiDB parser; applies light textual preprocessing for constructs the parser rejects (MariaDB `UUID` type, table encryption options, charset/collation mappings)
-- **writer.go**: Converts the AST back to formatted SQL (TiDB restore + vitess pretty-printing)
+- **writer.go**: Converts the AST back to formatted SQL (TiDB parser restore, one column/constraint per line in CREATE TABLE; honors `formatting` config)
 - **visitor.go**: AST traversal utilities with the visitor pattern
 
 ### Configuration (`internal/config/`)

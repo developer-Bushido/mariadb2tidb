@@ -79,6 +79,16 @@ Some MariaDB-only syntax cannot be represented in the TiDB parser AST, so the lo
 ## Candidate Future Rules
 
 - **ZeroTimestamp**: handle `'0000-00-00 00:00:00'` defaults (TiDB rejects them with default SQL mode)
-- **AutoRandom**: optionally convert `AUTO_INCREMENT` primary keys to `AUTO_RANDOM` to avoid write hotspots
+- **AutoRandom**: optionally convert `AUTO_INCREMENT` primary keys to `AUTO_RANDOM` to avoid write hotspots.
+  Must stay opt-in (per table), because it changes the IDs applications see
+  ([TiDB docs](https://docs.pingcap.com/tidb/stable/auto-random)):
+  - shard bits sit at the top of the 64-bit value, so IDs jump to ~2^58–2^63
+    immediately; on `BIGINT UNSIGNED` there is no sign bit and IDs exceed
+    2^63−1 (PHP `PHP_INT_MAX`, Java `long`), on any column they exceed 2^53
+    (JavaScript `Number`) — refuse or warn on `UNSIGNED`, consider
+    `AUTO_RANDOM(S, R)` with a smaller `R`;
+  - IDs are not monotonic, so `ORDER BY id` no longer means insertion order;
+  - only for a clustered `BIGINT` primary key; explicit ID inserts need
+    `@@allow_auto_random_explicit_insert`.
 - **ShardRowID**: inject `SHARD_ROW_ID_BITS` for tables without a clustered primary key
 - **Sequence/Trigger stripping**: MariaDB sequences and triggers are not supported by TiDB
