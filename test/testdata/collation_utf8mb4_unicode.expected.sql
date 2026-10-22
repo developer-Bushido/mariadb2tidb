@@ -1,21 +1,17 @@
-create table users (
-	id INT not null auto_increment,
-	username VARCHAR(50) collate utf8mb4_0900_ai_ci not null,
-	email VARCHAR(255) collate utf8mb4_0900_ai_ci not null,
-	display_name VARCHAR(100) collate utf8mb4_0900_ai_ci default null,
-	primary key (id),
-	unique key unique_username (username),
-	unique key unique_email (email)
-) ENGINE InnoDB,
-  charset UTF8MB4,
-  COLLATE UTF8MB4_0900_AI_CI;
+CREATE TABLE `users` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `username` VARCHAR(50) COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `email` VARCHAR(255) COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `display_name` VARCHAR(100) COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
+  PRIMARY KEY(`id`),
+  UNIQUE `unique_username`(`username`),
+  UNIQUE `unique_email`(`email`)
+) ENGINE = InnoDB DEFAULT CHARACTER SET = UTF8MB4 DEFAULT COLLATE = UTF8MB4_0900_AI_CI;
 
-create table posts (
-	id BIGINT not null auto_increment,
-	title VARCHAR(200) collate utf8mb4_0900_ai_ci not null,
-	author_id INT not null,
-	primary key (id),
-	key idx_author (author_id)
-) ENGINE InnoDB,
-  charset UTF8MB4,
-  COLLATE UTF8MB4_0900_AI_CI;
+CREATE TABLE `posts` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `title` VARCHAR(200) COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `author_id` INT NOT NULL,
+  PRIMARY KEY(`id`),
+  INDEX `idx_author`(`author_id`)
+) ENGINE = InnoDB DEFAULT CHARACTER SET = UTF8MB4 DEFAULT COLLATE = UTF8MB4_0900_AI_CI;

@@ -97,7 +97,7 @@ and written to the output directory preserving structure.`,
 		}
 
 		// Write transformed SQL
-		writer := parser.NewWriter()
+		writer := parser.NewWriterWithConfig(cfg)
 		outputSQL, err := writer.WriteStatements(transformedStmts)
 		if err != nil {
 			spinner.Fail("Failed to write SQL")

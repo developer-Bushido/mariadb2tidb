@@ -1,10 +1,8 @@
-create table users (
-	id INT(11) not null auto_increment,
-	`name` VARCHAR(255) not null,
-	email VARCHAR(255) default null,
-	created_at TIMESTAMP default current_timestamp(),
-	primary key (id),
-	unique key email (email)
-) ENGINE InnoDB,
-  charset UTF8MB4,
-  COLLATE UTF8MB4_0900_AI_CI;
+CREATE TABLE `users` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(255) NOT NULL,
+  `email` VARCHAR(255) DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
+  PRIMARY KEY(`id`),
+  UNIQUE `email`(`email`)
+) ENGINE = InnoDB DEFAULT CHARACTER SET = UTF8MB4 DEFAULT COLLATE = UTF8MB4_0900_AI_CI;
