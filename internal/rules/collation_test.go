@@ -38,7 +38,9 @@ func TestCollationRule_isTargetCollation(t *testing.T) {
 		{"utf8mb4_0900_ai_ci", false, "already modern collation"},
 		{"utf8mb4_general_ci", false, "different utf8mb4 collation"},
 		{"utf8_unicode_ci", false, "utf8 (not utf8mb4)"},
-		{"latin1_general_ci", false, "different latin1 collation"},
+		// TiDB has no latin1_general_ci, and latin1 maps to utf8mb4 by
+		// default: it resolves like the loader does.
+		{"latin1_general_ci", true, "different latin1 collation"},
 		{"", false, "empty string"},
 	}
 

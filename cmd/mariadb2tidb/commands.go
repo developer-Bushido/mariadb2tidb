@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/developer-Bushido/mariadb2tidb/internal/compat"
 	"github.com/developer-Bushido/mariadb2tidb/internal/config"
 	"github.com/developer-Bushido/mariadb2tidb/internal/parser"
 	"github.com/developer-Bushido/mariadb2tidb/internal/transformer"
@@ -75,33 +76,22 @@ and written to the output directory preserving structure.`,
 				return fmt.Errorf("directory transformation failed: %w", err)
 			}
 			spinner.Success("Directory transformed")
+			printWarnings(processor.Warnings())
 			pterm.Success.Printfln("Successfully transformed %s -> %s", inputPath, outputPath)
 			return nil
 		}
 
-		// Load SQL from input file
-		loader := parser.NewLoaderWithConfig(cfg)
-		stmts, err := loader.LoadFromFile(inputPath)
+		input, err := os.ReadFile(inputPath)
 		if err != nil {
-			return fmt.Errorf("failed to load SQL file: %w", err)
+			return fmt.Errorf("failed to read SQL file: %w", err)
 		}
 
 		spinner, _ := pterm.DefaultSpinner.Start("Transforming schema")
-
-		// Create transformation engine and apply rules
-		engine := transformer.NewEngine(cfg)
-		transformedStmts, err := engine.Transform(stmts)
+		report := compat.NewReporter()
+		outputSQL, err := transformer.TransformString(cfg, string(input), report)
 		if err != nil {
 			spinner.Fail("Transformation failed")
 			return fmt.Errorf("transformation failed: %w", err)
-		}
-
-		// Write transformed SQL
-		writer := parser.NewWriterWithConfig(cfg)
-		outputSQL, err := writer.WriteStatements(transformedStmts)
-		if err != nil {
-			spinner.Fail("Failed to write SQL")
-			return fmt.Errorf("failed to write SQL: %w", err)
 		}
 
 		if outputPath == "" {
@@ -115,6 +105,7 @@ and written to the output directory preserving structure.`,
 		}
 
 		spinner.Success("Transformation complete")
+		printWarnings(report.Warnings())
 
 		if outputPath == "" {
 			pterm.Success.Printfln("Successfully transformed %s", inputPath)
@@ -175,6 +166,7 @@ var transformDirCmd = &cobra.Command{
 			return err
 		}
 		spinner.Success("Directory transformed")
+		printWarnings(processor.Warnings())
 		pterm.Success.Printfln("Transformed directory %s -> %s", inputDir, outputDir)
 		return nil
 	},
@@ -216,6 +208,18 @@ func init() {
 	transformDirCmd.Flags().IntP("workers", "w", 4, "Number of parallel workers")
 	transformDirCmd.Flags().Duration("timeout", 0, "Optional timeout, e.g. 30m")
 	transformDirCmd.Flags().String("config", "", "Path to YAML configuration file")
+}
+
+// printWarnings lists migration warnings: things the conversion changed or
+// dropped that need a human decision (stored programs, engines, ...).
+func printWarnings(warnings []string) {
+	if len(warnings) == 0 {
+		return
+	}
+	pterm.Warning.Printfln("%d migration warning(s):", len(warnings))
+	for _, w := range warnings {
+		pterm.Println("  - " + w)
+	}
 }
 
 // versionCmd prints detailed version information including commit and build date

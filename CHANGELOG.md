@@ -7,6 +7,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Tested end to end against live MariaDB 11.4 and TiDB v8.5.8: a corpus of
+MariaDB features is created on MariaDB, dumped with `mariadb-dump`
+(routines, triggers, events, data), converted, loaded into TiDB and compared
+column by column and row by row (`make integration`, CI job `integration`).
+
+### Fixed
+- **String literals and comments are never rewritten.** The `uuid` type
+  replacement and the `char(36) NOT NULL` default insertion ran as regexes
+  over the whole text, so `COMMENT 'a uuid value'` and data such as
+  `'generate a uuid here'` came out as `char(36)`, and a string containing
+  `char(36) not null` got `default ''` inserted into it. Preprocessing now
+  works on tokens and only inside DDL.
+- **MariaDB 11 dumps load.** Its default collation `utf8mb4_uca1400_ai_ci`
+  (and any other collation TiDB lacks) failed parsing; collations now
+  resolve deterministically (configured exact name, most specific pattern,
+  then a same-charset fallback that keeps case sensitivity). Wildcard
+  mappings used to be matched in random map order, and the loader's mapping
+  missed `COLLATE=x` and wildcard patterns entirely.
+- `transform-dir` copies Dumpling data chunks (`db.table.N.sql`, CSV,
+  compressed) and other files (`metadata`) unchanged instead of rewriting
+  rows or dropping non-`.sql` files, so the output is a complete Lightning
+  source.
+- Script splitting follows the mysql client: `SET sql_mode` (a routine
+  dumped under `NO_BACKSLASH_ESCAPES` no longer swallows every following
+  database), `*/` inside strings of executable comments, the first word
+  after `DELIMITER`, a UTF-8 BOM.
+- Every collation change that alters comparisons is reported: lost
+  language rules, accents, case, and padding (TiDB's `utf8mb4_0900_*` are
+  NO PAD, MariaDB's are PAD SPACE, so `'a'` and `'a '` stop being equal
+  under the default mapping); `*_nopad_bin` maps to NO PAD
+  `utf8mb4_0900_bin`. The AST Collation rule now resolves like the loader.
+- MERGE tables lose `UNION`/`INSERT_METHOD` (rejected by TiDB) with a
+  warning; unknown rule names in the config are an error.
+- Expressions follow the columns' charset mapping: `CAST(... CHARSET x)`,
+  `CONVERT(... USING x)`, ASCII `_latin1'...'` literals and a `COLLATE`
+  after them (otherwise comparisons with converted columns fail with
+  1267/1253); an explicit table/database `COLLATE` is no longer overridden
+  by a charset mapping's collation.
+- Sequences are matched by database as well as name; `CREATE TABLE ...
+  SELECT` (unsupported by TiDB) is reported; accent-sensitive
+  `latin1_general_ci` and `*_as_*` mappings are reported.
+- Collation fallback keeps case sensitivity (`latin1_general_cs` no longer
+  becomes `utf8mb4_0900_ai_ci`, which made unique keys reject `'a'`/`'A'`),
+  and a supported collation is remapped with its charset (`latin1_bin` →
+  `utf8mb4_bin`).
+- `ALTER TABLE t ALTER COLUMN c SET DEFAULT ...` no longer panics
+  (TextBlobDefaults); in v1.2.0 it did.
+- A failing rule fails the run instead of being logged and skipped.
+- Default log output is warnings only; errors are no longer printed twice.
+
+### Added
+- Stored programs (triggers, procedures, functions, events, packages) are
+  dropped with a warning; `DELIMITER` blocks and MariaDB-only `/*M! */`
+  comments are handled.
+- Column types `INET4`/`INET6` (→ `VARCHAR`) and spatial types
+  (→ `LONGBLOB`, WKB kept); MariaDB-only attributes (`INVISIBLE`,
+  `COMPRESSED`, system versioning, `GENERATED ALWAYS AS ROW START/END`),
+  `SPATIAL` indexes, `PERIOD FOR` and table options (`PAGE_COMPRESSED`,
+  `TRANSACTIONAL`, `PAGE_CHECKSUM`, `IETF_QUOTES`, `WITH SYSTEM VERSIONING`)
+  are removed with warnings; `FULLTEXT` indexes are reported (TiDB accepts
+  them without creating them).
+- Sequences keep their position: MariaDB's `SETVAL(seq, n, is_used)` is
+  folded into `START WITH`, exact for descending sequences too.
+- Rules: `Engine` (Aria, ColumnStore, … → InnoDB), `JsonValue`
+  (`JSON_VALUE` → a guarded `JSON_UNQUOTE(JSON_EXTRACT())` with MariaDB's
+  NULLs for invalid JSON, null, objects, arrays), `ZeroDate`
+  (`zero_date_defaults: keep|drop`), `GeneratedValues` (values for
+  generated columns in INSERTs become `DEFAULT`), and opt-in `AutoRandom`
+  (`auto_random.tables`, refuses `UNSIGNED`, `range_bits: 54` keeps IDs
+  below 2^53) and `ShardRowID` (`shard_row_id_bits`).
+- Output check: the output is re-parsed and compared statement by
+  statement (tables, columns, all keys, partitioning, INSERT rows, ALTER
+  specs, USE); any loss fails the run.
+- `transform-dir` refuses an output directory equal to or nested with the
+  input (copying onto itself truncated files), rejects symlinks instead of
+  skipping them, follows a symlinked input root, and transforms gzip schema
+  files.
+- Config files are decoded strictly (unknown keys are errors) and validated
+  against TiDB's limits.
+- Migration warnings are collected and printed at the end of a run.
+- Integration tests and CI job against MariaDB 11.4 and TiDB v8.5.8.
+
+### Changed
+- Unique keys named `uuid` keep their name (the `uuid_key` rename only
+  worked around the old text replacement); only uuid-converted columns get
+  `DEFAULT ''`, not every `char(36) NOT NULL` column.
+
 ## [1.2.0] - 2026-10-22
 
 ### Fixed

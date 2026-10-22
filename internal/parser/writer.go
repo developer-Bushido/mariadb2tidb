@@ -81,7 +81,7 @@ func (w *Writer) WriteStatements(stmts []ast.StmtNode) (string, error) {
 
 		formatted, err := w.WriteStatement(stmt)
 		if err != nil {
-			w.logger.Error("Failed to write statement", zap.Int("index", i), zap.Error(err))
+			w.logger.Debug("Failed to write statement", zap.Int("index", i), zap.Error(err))
 			return "", err
 		}
 
@@ -102,7 +102,7 @@ func (w *Writer) WriteStatement(stmt ast.StmtNode) (string, error) {
 
 	result, err := w.restore(stmt)
 	if err != nil {
-		w.logger.Error("Failed to restore statement", zap.Error(err))
+		w.logger.Debug("Failed to restore statement", zap.Error(err))
 		return "", err
 	}
 

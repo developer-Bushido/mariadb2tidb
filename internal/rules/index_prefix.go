@@ -98,6 +98,9 @@ func isTextOrBlob(ft *types.FieldType) bool {
 }
 
 func isVarcharOrChar(ft *types.FieldType) bool {
+	if ft == nil {
+		return false
+	}
 	switch ft.GetType() {
 	case mysql.TypeVarchar, mysql.TypeVarString, mysql.TypeString:
 		return true

@@ -81,6 +81,39 @@ jobs:
           git-token: ${{ secrets.GITHUB_TOKEN }}
           git-branch: badges
 
+  integration:
+    name: integration (MariaDB 11.4 -> TiDB v8.5.8)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      tidb:
+        image: pingcap/tidb:v8.5.8@sha256:df168c764bf2dfdb166dc37a5c3b0e210d29d5f3ab2d33317fd0fdf7b32037f5
+        ports:
+          - 4000:4000
+      mariadb:
+        image: mariadb:11.4@sha256:1292844148b311e4ed4300022a996d39083f415a963e970cf47cad1b3b18e3a6
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "1"
+        ports:
+          - 3306:3306
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Integration tests
+        env:
+          M2T_TIDB_DSN: root@tcp(127.0.0.1:4000)/
+          M2T_MARIADB_DSN: root@tcp(127.0.0.1:3306)/
+          M2T_MARIADB_DUMP: docker exec ${{ job.services.mariadb.id }} mariadb-dump -uroot
+        run: go test -tags integration ./test/integration -count=1 -v
+
   lint:
     name: golangci-lint
     runs-on: ubuntu-latest

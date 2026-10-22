@@ -85,7 +85,7 @@ func keyNeedsCap(key *ast.IndexPartSpecification, colMap map[string]*ast.ColumnD
 	if !ok {
 		return false
 	}
-	return isVarcharOrChar(col.Tp) && col.Tp.GetFlen() > maxKeyLenChars
+	return col.Tp != nil && isVarcharOrChar(col.Tp) && col.Tp.GetFlen() > maxKeyLenChars
 }
 
 // isIndexConstraint reports whether a constraint type builds an index key.

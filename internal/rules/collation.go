@@ -3,31 +3,28 @@
 package rules
 
 import (
-	"path/filepath"
 	"strings"
 
+	"github.com/developer-Bushido/mariadb2tidb/internal/compat"
 	"github.com/developer-Bushido/mariadb2tidb/internal/config"
 	"github.com/pingcap/tidb/pkg/parser/ast"
 )
 
 // CollationRule transforms collation and charset specifications based on configuration
 type CollationRule struct {
-	charsetMap   map[string]config.CharsetMapping
-	collationMap map[string]string
+	charsetMap map[string]config.CharsetMapping
+	resolver   *compat.CollationResolver
 }
 
 // NewCollationRule creates a CollationRule with the provided configuration
 func NewCollationRule(cfg *config.Config) *CollationRule {
 	cr := &CollationRule{
-		charsetMap:   make(map[string]config.CharsetMapping),
-		collationMap: make(map[string]string),
+		charsetMap: make(map[string]config.CharsetMapping),
+		resolver:   compat.NewCollationResolver(cfg),
 	}
 	if cfg != nil {
 		for k, v := range cfg.CharsetMappings {
 			cr.charsetMap[strings.ToLower(k)] = v
-		}
-		for k, v := range cfg.CollationMappings {
-			cr.collationMap[strings.ToLower(k)] = v
 		}
 	}
 	return cr
@@ -148,19 +145,10 @@ func (r *CollationRule) mapCharset(charset string) (config.CharsetMapping, bool)
 	return m, ok
 }
 
+// mapCollation resolves like the loader does (deterministic: exact names,
+// then the most specific pattern, then a same-charset fallback).
 func (r *CollationRule) mapCollation(collation string) (string, bool) {
-	c := strings.ToLower(collation)
-	if v, ok := r.collationMap[c]; ok {
-		return v, true
-	}
-	for pattern, v := range r.collationMap {
-		if strings.Contains(pattern, "*") {
-			if ok, _ := filepath.Match(pattern, c); ok {
-				return v, true
-			}
-		}
-	}
-	return "", false
+	return r.resolver.Resolve(collation)
 }
 
 // transformCreateTable applies collation transformations to CREATE TABLE statement
@@ -227,12 +215,13 @@ func (r *CollationRule) transformColumnDef(col *ast.ColumnDef) *ast.ColumnDef {
 	return col
 }
 
-// ensureTableCollateOption adds COLLATE option if not present, or ensures it's set correctly
+// ensureTableCollateOption adds the charset mapping's COLLATE when the
+// table has none. An explicit COLLATE is kept (and resolved by
+// mapCollation): overwriting it would turn a case-sensitive table
+// case-insensitive.
 func (r *CollationRule) ensureTableCollateOption(stmt *ast.CreateTableStmt, collation string) {
-	// Check if COLLATE option already exists
 	for _, opt := range stmt.Options {
 		if opt.Tp == ast.TableOptionCollate {
-			opt.StrValue = collation
 			return
 		}
 	}
@@ -245,11 +234,11 @@ func (r *CollationRule) ensureTableCollateOption(stmt *ast.CreateTableStmt, coll
 	stmt.Options = append(stmt.Options, collateOpt)
 }
 
-// ensureDatabaseCollateOption adds COLLATE option if not present, or ensures it's set correctly
+// ensureDatabaseCollateOption adds the charset mapping's COLLATE when the
+// database has none; an explicit one is kept (see ensureTableCollateOption).
 func (r *CollationRule) ensureDatabaseCollateOption(stmt *ast.CreateDatabaseStmt, collation string) {
 	for _, opt := range stmt.Options {
 		if opt.Tp == ast.DatabaseOptionCollate {
-			opt.Value = collation
 			return
 		}
 	}
