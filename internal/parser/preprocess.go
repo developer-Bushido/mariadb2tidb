@@ -191,6 +191,21 @@ func (p *preprocessor) run(sql string) string {
 	return strings.Join(parts, ";\n") + ";\n"
 }
 
+// assignsSQLMode reports whether the value token at i is assigned to
+// sql_mode ("sql_mode =", "sql_mode :=", "`sql_mode` =").
+func assignsSQLMode(toks []token, i int) bool {
+	p := prevSig(toks, i)
+	if p >= 0 && toks[p].text == "=" {
+		p = prevSig(toks, p)
+		if p >= 0 && toks[p].text == ":" {
+			p = prevSig(toks, p)
+		}
+	} else {
+		return false
+	}
+	return p >= 0 && strings.HasSuffix(strings.ToLower(toks[p].name()), "sql_mode")
+}
+
 // normalizeBackslashes rewrites string literals of a statement written
 // under NO_BACKSLASH_ESCAPES ('C:\' is one backslash) into the default
 // escaping the TiDB parser and the output use ('C:\\').
@@ -204,10 +219,17 @@ func normalizeBackslashes(toks []token) {
 }
 
 // stripNoBackslashEscapes removes NO_BACKSLASH_ESCAPES from sql_mode
-// literals: the output always escapes backslashes, so loading it in that
-// mode would double every backslash in the data.
+// values, as a name in string literals and as bit 20 of a numeric value
+// (SET sql_mode = 1048576): the output always escapes backslashes, so
+// loading it in that mode would double every backslash in the data.
 func stripNoBackslashEscapes(toks []token) {
 	for i, t := range toks {
+		if t.kind == tokWord && t.text[0] >= '0' && t.text[0] <= '9' && assignsSQLMode(toks, i) {
+			if n, err := strconv.ParseUint(t.text, 10, 64); err == nil && n&noBackslashEscapesBit != 0 {
+				toks[i].text = strconv.FormatUint(n&^noBackslashEscapesBit, 10)
+			}
+			continue
+		}
 		if t.kind != tokString || !strings.Contains(strings.ToUpper(t.text), "NO_BACKSLASH_ESCAPES") {
 			continue
 		}

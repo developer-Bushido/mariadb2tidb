@@ -265,3 +265,29 @@ func TestExecutableCommentVersions(t *testing.T) {
 	assert.Equal(t, `a\b`, stmts[len(stmts)-1].(*ast.InsertStmt).Lists[0][0].(ast.ValueExpr).GetString())
 	assert.Contains(t, got, "/*! SET @x = 1 */")
 }
+
+// Copilot review on #31.
+
+func TestApostropheInCommentInsideExecutableComment(t *testing.T) {
+	dump := "DELIMITER ;;\n" +
+		"/*!50003 CREATE*/ /*!50003 TRIGGER trg BEFORE INSERT ON a FOR EACH ROW BEGIN\n-- don't change this\n# nor this'\nSET NEW.c = 1; END */;;\n" +
+		"DELIMITER ;\nCREATE TABLE after1 (id INT);\nCREATE TABLE after2 (id INT);\n"
+	got, _ := preprocessWith(t, dump)
+	assert.Len(t, mustParse(t, got), 2)
+}
+
+func TestQuotedAndNumericSqlMode(t *testing.T) {
+	for script, want := range map[string]bool{
+		"SET SESSION `sql_mode` = 'NO_BACKSLASH_ESCAPES'": true,
+		"SET sql_mode = 1048576":                          true,
+		"SET sql_mode = 1048577":                          true,
+		"SET sql_mode = 1":                                false,
+	} {
+		st := splitScriptModes(script+";\nSELECT 1", nil)
+		assert.Equal(t, want, st[len(st)-1].noBackslash, script)
+	}
+	got, _ := preprocessWith(t, "SET sql_mode = 1048577;\nINSERT INTO t VALUES ('C:\\');")
+	assert.Contains(t, got, "SET sql_mode = 1;", "the output must not switch the mode on")
+	stmts := mustParse(t, got)
+	assert.Equal(t, `C:\`, stmts[1].(*ast.InsertStmt).Lists[0][0].(ast.ValueExpr).GetString())
+}

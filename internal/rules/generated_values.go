@@ -47,7 +47,7 @@ func (r *GeneratedValuesRule) Priority() int { return 900 }
 // ShouldApply implements Rule.
 func (r *GeneratedValuesRule) ShouldApply(node ast.Node) bool {
 	switch node.(type) {
-	case *ast.UseStmt, *ast.CreateTableStmt, *ast.InsertStmt:
+	case *ast.UseStmt, *ast.CreateTableStmt, *ast.InsertStmt, *ast.AlterTableStmt, *ast.DropTableStmt, *ast.RenameTableStmt:
 		return true
 	}
 	return false
@@ -73,8 +73,52 @@ func (r *GeneratedValuesRule) Apply(node ast.Node) (ast.Node, error) {
 		r.tables[r.key(n.Table)] = tc
 	case *ast.InsertStmt:
 		r.rewriteInsert(n)
+	case *ast.AlterTableStmt:
+		// Only column changes move positions; mariadb-dump's own
+		// ALTER TABLE ... DISABLE KEYS before the data must not count.
+		for _, spec := range n.Specs {
+			switch spec.Tp {
+			case ast.AlterTableAddColumns, ast.AlterTableDropColumn, ast.AlterTableModifyColumn,
+				ast.AlterTableChangeColumn, ast.AlterTableRenameColumn, ast.AlterTableRenameTable:
+				r.forget(n.Table, "ALTER TABLE")
+			}
+		}
+	case *ast.DropTableStmt:
+		for _, t := range n.Tables {
+			r.forget(t, "")
+		}
+	case *ast.RenameTableStmt:
+		for _, p := range n.TableToTables {
+			r.forget(p.OldTable, "RENAME TABLE")
+			r.forget(p.NewTable, "")
+		}
 	}
 	return node, nil
+}
+
+// forget drops a table's recorded layout after a statement that may change
+// it: rewriting INSERTs with stale positions would replace ordinary values
+// with DEFAULT. Without a layout, TiDB rejects values for generated columns
+// loudly (error 3105) instead.
+func (r *GeneratedValuesRule) forget(t *ast.TableName, why string) {
+	key := r.key(t)
+	tc, ok := r.tables[key]
+	if !ok {
+		return
+	}
+	delete(r.tables, key)
+	if why != "" && anyTrue(tc.generated) {
+		r.report.Warnf("table %s: %s after its CREATE TABLE; values for its generated columns in later INSERTs are no longer replaced (TiDB rejects them with error 3105)", t.Name.O, why)
+	}
+}
+
+func anyTrue(b []bool) bool {
+	for _, v := range b {
+		if v {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *GeneratedValuesRule) key(t *ast.TableName) string {

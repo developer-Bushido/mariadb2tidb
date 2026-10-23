@@ -74,3 +74,17 @@ func FuzzTokenize(f *testing.F) {
 		_ = splitScript(s)
 	})
 }
+
+func TestLineCommentInsideExecutableComment(t *testing.T) {
+	in := "/*!50003 SET a = 1 -- don't */ SELECT 2"
+	toks := tokenize(in)
+	assert.Equal(t, in, joinTokens(toks))
+	var kinds []tokKind
+	for _, tk := range toks {
+		if tk.kind != tokSpace {
+			kinds = append(kinds, tk.kind)
+		}
+	}
+	assert.Equal(t, []tokKind{tokExecOpen, tokWord, tokWord, tokPunct, tokWord, tokComment, tokExecClose, tokWord, tokWord}, kinds)
+	assert.Equal(t, []string{"/*!50003 SET a = 1 -- don't */ SELECT 2"}, SplitScript(in))
+}

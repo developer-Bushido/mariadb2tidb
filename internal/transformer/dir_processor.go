@@ -205,8 +205,8 @@ func (p *DirProcessor) processFile(ctx context.Context, inputDir, outputDir, fil
 		return fmt.Errorf("rel path %s: %w", filePath, err)
 	}
 	outPath := filepath.Join(outputDir, rel)
-	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
-		return fmt.Errorf("mkdir %s: %w", outPath, err)
+	if err := mkdirNoLinks(outputDir, filepath.Dir(outPath)); err != nil {
+		return err
 	}
 
 	if !isSchemaFile(filepath.Base(filePath)) {
@@ -304,6 +304,38 @@ func writeAtomic(path string, r io.Reader) (err error) {
 	return os.Rename(tmp.Name(), path)
 }
 
+// mkdirNoLinks creates dir below root, refusing any existing component that
+// is a symlink or not a directory: output/sub -> input/sub would make a
+// write land in the input tree.
+func mkdirNoLinks(root, dir string) error {
+	rel, err := filepath.Rel(root, dir)
+	if err != nil {
+		return err
+	}
+	cur := root
+	for _, part := range strings.Split(rel, string(filepath.Separator)) {
+		if part == "." || part == "" {
+			continue
+		}
+		cur = filepath.Join(cur, part)
+		fi, err := os.Lstat(cur)
+		switch {
+		case os.IsNotExist(err):
+			if err := os.Mkdir(cur, 0o755); err != nil && !os.IsExist(err) {
+				return fmt.Errorf("mkdir %s: %w", cur, err)
+			}
+		case err != nil:
+			return err
+		case fi.Mode()&os.ModeSymlink != 0:
+			return fmt.Errorf("%s in the output directory is a symbolic link; remove it", cur)
+		case !fi.IsDir():
+			return fmt.Errorf("%s in the output directory is not a directory", cur)
+		}
+	}
+	return nil
+}
+
+// copyFile streams src to dst (data chunks can be large).
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {

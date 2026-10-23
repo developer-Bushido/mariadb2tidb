@@ -78,6 +78,11 @@ func tokenizeMode(s string, noBackslash bool) []token {
 			}
 		case c == '#' || isDashComment(s, i):
 			i = skipLine(s, i)
+			if inExec { // as in skipExecComment: "*/" still ends the block
+				if j := strings.Index(s[start:i], "*/"); j >= 0 {
+					i = start + j
+				}
+			}
 			kind = tokComment
 		case inExec && strings.HasPrefix(s[i:], "*/"):
 			i += 2
@@ -203,6 +208,14 @@ func skipExecComment(s string, i int, noBackslash bool) int {
 		switch {
 		case s[i] == '\'' || s[i] == '"' || s[i] == '`':
 			i = skipQuoted(s, i, noBackslash)
+		case s[i] == '#' || isDashComment(s, i):
+			// An apostrophe in "-- don't" is not a string. The comment
+			// still ends at "*/", as in the client.
+			eol := skipLine(s, i)
+			if j := strings.Index(s[i:eol], "*/"); j >= 0 {
+				return i + j + 2
+			}
+			i = eol
 		case strings.HasPrefix(s[i:], "*/"):
 			return i + 2
 		default:
@@ -367,7 +380,7 @@ func (m *sqlModeTracker) update(toks []token) {
 func (m *sqlModeTracker) assign(lhs, rhs []token) {
 	var name string
 	for _, t := range lhs {
-		name += t.text
+		name += t.name() // `sql_mode` counts like sql_mode
 	}
 	name = strings.ToLower(name)
 	isVar := strings.HasPrefix(name, "@") && !strings.HasPrefix(name, "@@")
@@ -392,7 +405,7 @@ func (m *sqlModeTracker) assign(lhs, rhs []token) {
 	case isVar:
 		m.vars[name] = value
 	default:
-		m.cur = strings.ToUpper(value) // the server canonicalizes the mode
+		m.cur = strings.ToUpper(decodeSQLModeNumber(value)) // the server canonicalizes the mode
 	}
 }
 
@@ -467,6 +480,23 @@ func (m *sqlModeTracker) evalExpr(toks []token) (string, []token, bool) {
 		return v, toks[1:], ok // MariaDB rejects an undefined variable
 	}
 	return "", nil, false
+}
+
+// noBackslashEscapesBit is MODE_NO_BACKSLASH_ESCAPES in MariaDB's (and
+// MySQL's) sql_mode bitmask: SET sql_mode = 1048576 enables it.
+const noBackslashEscapesBit = 1 << 20
+
+// decodeSQLModeNumber turns a numeric sql_mode into the flag names the
+// tracker needs; other values are returned unchanged.
+func decodeSQLModeNumber(v string) string {
+	n, err := strconv.ParseUint(strings.TrimSpace(v), 10, 64)
+	if err != nil {
+		return v
+	}
+	if n&noBackslashEscapesBit != 0 {
+		return "NO_BACKSLASH_ESCAPES"
+	}
+	return ""
 }
 
 // evalArgs evaluates "( expr, expr, ... )".

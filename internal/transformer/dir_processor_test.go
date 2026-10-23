@@ -179,6 +179,19 @@ func TestProcessDirectoryRefusesSameDirUnderAnotherName(t *testing.T) {
 	assert.Equal(t, "INSERT INTO t VALUES (1);", string(got))
 }
 
+func TestProcessDirectoryRefusesLinkedOutputSubdir(t *testing.T) {
+	require.NoError(t, utils.InitLogger(true))
+	in, out := t.TempDir(), t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(in, "sub"), 0o755))
+	schema := filepath.Join(in, "sub", "db.t-schema.sql")
+	require.NoError(t, os.WriteFile(schema, []byte("CREATE TABLE t (id INT) ENGINE=Aria;"), 0o644))
+	require.NoError(t, os.Symlink(filepath.Join(in, "sub"), filepath.Join(out, "sub")))
+
+	assert.ErrorContains(t, NewDirProcessor(nil).ProcessDirectory(context.Background(), in, out, 1), "symbolic link")
+	got, _ := os.ReadFile(schema)
+	assert.Equal(t, "CREATE TABLE t (id INT) ENGINE=Aria;", string(got), "input untouched")
+}
+
 func TestProcessDirectoryDoesNotWriteThroughLinks(t *testing.T) {
 	require.NoError(t, utils.InitLogger(true))
 	in, out := t.TempDir(), t.TempDir()

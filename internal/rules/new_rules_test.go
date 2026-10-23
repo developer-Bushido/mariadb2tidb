@@ -184,3 +184,30 @@ func TestCollationRuleKeepsExplicitCollate(t *testing.T) {
 	assert.Contains(t, lower, "default collate = utf8mb4_0900_bin", "nopad_bin as resolved by the loader")
 	assert.Contains(t, lower, "`c` ( `x` int ) default character set = utf8mb4 default collate = utf8mb4_0900_ai_ci", "the mapping's collation only where none is given")
 }
+
+func TestGeneratedValuesForgetsAlteredTables(t *testing.T) {
+	sql := "CREATE TABLE t (a INT, b INT AS (a+1) STORED, c INT); ALTER TABLE t DROP COLUMN b; INSERT INTO t VALUES (1,42);" +
+		"CREATE TABLE u (a INT, b INT AS (a+1) STORED); RENAME TABLE u TO v; INSERT INTO v VALUES (1,2);"
+	got, warns := run(t, config.DefaultConfig(), sql)
+	assert.Contains(t, got, "INSERT INTO `t` VALUES (1,42);", "c keeps its value")
+	assert.Contains(t, got, "INSERT INTO `v` VALUES (1,2);")
+	assert.Contains(t, strings.Join(warns, "\n"), "ALTER TABLE after its CREATE TABLE")
+
+	// mariadb-dump writes ALTER TABLE ... DISABLE KEYS before the data.
+	got, _ = run(t, config.DefaultConfig(), "CREATE TABLE g (a INT, b INT AS (a+1) STORED); ALTER TABLE g DISABLE KEYS; INSERT INTO g VALUES (1,2);")
+	assert.Contains(t, got, "INSERT INTO `g` VALUES (1,DEFAULT);")
+}
+
+func TestJSONValueNestingBudget(t *testing.T) {
+	nest := func(n int) string {
+		e := "d"
+		for range n {
+			e = "JSON_VALUE(" + e + ", '$.a')"
+		}
+		return "CREATE VIEW v AS SELECT " + e + " AS x FROM t;"
+	}
+	got, _ := run(t, config.DefaultConfig(), nest(4))
+	assert.Less(t, len(got), 20000)
+	_, err := transformer.TransformString(config.DefaultConfig(), nest(12), nil)
+	assert.ErrorContains(t, err, "nested 5 levels deep")
+}

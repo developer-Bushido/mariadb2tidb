@@ -301,6 +301,8 @@ func indexes(t *testing.T, db *sql.DB) []string {
 // textTypes are compared as characters: their bytes legitimately change
 // with the charset (latin1 'Å' is C5, utf8mb4 is C385), and MariaDB stores
 // UUID/INET values in binary but dumps and converts them as text.
+var fractionalTypes = map[string]bool{"decimal": true, "double": true, "float": true}
+
 var textTypes = map[string]bool{
 	"char": true, "varchar": true, "tinytext": true, "text": true, "mediumtext": true, "longtext": true,
 	"enum": true, "set": true, "json": true, "uuid": true, "inet4": true, "inet6": true,
@@ -316,9 +318,14 @@ func rows(t *testing.T, db *sql.DB, table string) [][]string {
 		name, typ, _ := strings.Cut(c, " ")
 		// HEX keeps the comparison on stored bytes (or, for text, on the
 		// characters), not on how a client renders them.
-		if textTypes[typ] {
+		switch {
+		case textTypes[typ]:
 			quoted[i] = fmt.Sprintf("HEX(CONVERT(`%s` USING utf8mb4))", name)
-		} else {
+		case fractionalTypes[typ]:
+			// HEX(number) converts to an integer: 1.10 and 1.20 would
+			// compare equal. Compare the text form instead.
+			quoted[i] = fmt.Sprintf("HEX(CAST(`%s` AS CHAR))", name)
+		default:
 			quoted[i] = fmt.Sprintf("HEX(`%s`)", name)
 		}
 		order[i] = fmt.Sprint(i + 1)

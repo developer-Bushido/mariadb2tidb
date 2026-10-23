@@ -1,6 +1,9 @@
 package rules
 
 import (
+	"fmt"
+	"math"
+
 	"github.com/developer-Bushido/mariadb2tidb/internal/compat"
 	"github.com/pingcap/tidb/pkg/parser/ast"
 	"github.com/pingcap/tidb/pkg/parser/model"
@@ -49,22 +52,37 @@ func (r *JSONValueRule) ShouldApply(node ast.Node) bool {
 // node a rule replaced.
 func (r *JSONValueRule) Apply(node ast.Node) (ast.Node, error) {
 	r.report.Warnf("JSON_VALUE rewritten for TiDB: same NULLs for invalid JSON, null, objects and arrays; numbers and booleans may be formatted differently (1.50 -> 1.5, true -> true instead of 1), and with duplicate keys the last one wins instead of the first")
-	out, _ := node.Accept(jsonValueRewriter{})
-	return out, nil
+	rw := &jsonValueRewriter{depth: map[ast.Node]int{}}
+	out, _ := node.Accept(rw)
+	return out, rw.err
 }
+
+// maxJSONValueNesting bounds nested rewrites: each one repeats its document
+// three times, so n levels repeat the innermost one 3^n times.
+const maxJSONValueNesting = 4
 
 // jsonValueRewriter replaces JSON_VALUE calls in Leave (post-order), where
 // a parent accepts a node of a different type.
-type jsonValueRewriter struct{}
+type jsonValueRewriter struct {
+	depth map[ast.Node]int // replacement node -> nesting depth
+	err   error
+}
 
-func (jsonValueRewriter) Enter(n ast.Node) (ast.Node, bool) { return n, false }
+func (*jsonValueRewriter) Enter(n ast.Node) (ast.Node, bool) { return n, false }
 
-func (jsonValueRewriter) Leave(n ast.Node) (ast.Node, bool) {
+func (rw *jsonValueRewriter) Leave(n ast.Node) (ast.Node, bool) {
 	fn, ok := n.(*ast.FuncCallExpr)
 	if !ok || fn.FnName.L != "json_value" || len(fn.Args) != 2 {
 		return n, true
 	}
 	doc, path := fn.Args[0], fn.Args[1]
+	depth := 1 + max(rw.nested(doc), rw.nested(path))
+	if depth > maxJSONValueNesting {
+		if rw.err == nil {
+			rw.err = fmt.Errorf("JSON_VALUE nested %d levels deep: the TiDB rewrite would repeat the innermost document %d times; rewrite it by hand", depth, int(math.Pow(3, float64(depth))))
+		}
+		return n, true
+	}
 	call := func(name string, args ...ast.ExprNode) *ast.FuncCallExpr {
 		return &ast.FuncCallExpr{FnName: model.NewCIStr(name), Args: args}
 	}
@@ -79,7 +97,31 @@ func (jsonValueRewriter) Leave(n ast.Node) (ast.Node, bool) {
 			Not:  true,
 		},
 	}
-	return &ast.CaseExpr{
+	out := &ast.CaseExpr{
 		WhenClauses: []*ast.WhenClause{{Expr: cond, Result: call("json_unquote", extract)}},
-	}, true
+	}
+	rw.depth[out] = depth
+	return out, true
 }
+
+// nested returns the deepest rewritten JSON_VALUE inside e.
+func (rw *jsonValueRewriter) nested(e ast.Node) int {
+	d := 0
+	e.Accept(depthFinder{rw.depth, &d})
+	return d
+}
+
+type depthFinder struct {
+	depth map[ast.Node]int
+	max   *int
+}
+
+func (f depthFinder) Enter(n ast.Node) (ast.Node, bool) {
+	if d, ok := f.depth[n]; ok {
+		*f.max = max(*f.max, d)
+		return n, true
+	}
+	return n, false
+}
+
+func (f depthFinder) Leave(n ast.Node) (ast.Node, bool) { return n, true }

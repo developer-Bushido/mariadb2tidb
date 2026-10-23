@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-23
+
 Tested end to end against live MariaDB 11.4 and TiDB v8.5.8: a corpus of
 MariaDB features is created on MariaDB, dumped with `mariadb-dump`
 (routines, triggers, events, data), converted, loaded into TiDB and compared
@@ -52,6 +54,13 @@ column by column and row by row (`make integration`, CI job `integration`).
   becomes `utf8mb4_0900_ai_ci`, which made unique keys reject `'a'`/`'A'`),
   and a supported collation is remapped with its charset (`latin1_bin` →
   `utf8mb4_bin`).
+- From review: an apostrophe in a `-- ` comment inside an executable
+  comment no longer opens a string (it swallowed the rest of the dump);
+  `` `sql_mode` `` quoted and numeric `SET sql_mode = 1048576` are tracked,
+  and the bit is cleared in the output; INSERTs after an ALTER that changes
+  a table's columns are no longer rewritten from a stale layout; symlinked
+  subdirectories in the output are refused; nested `JSON_VALUE` deeper than
+  4 levels is an error instead of exponentially large output.
 - `ALTER TABLE t ALTER COLUMN c SET DEFAULT ...` no longer panics
   (TextBlobDefaults); in v1.2.0 it did.
 - A failing rule fails the run instead of being logged and skipped.
