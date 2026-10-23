@@ -11,13 +11,23 @@ A command-line tool that converts MariaDB schemas into TiDB-compatible SQL.
 
 ## Features
 
-- Rule-based schema transformation to the TiDB dialect (collations, index key
-  length limits, TEXT/BLOB defaults, `JSON_VALID` checks, UUID columns — see
+- Reads real `mariadb-dump` output (MariaDB 10.x–11.x, schema and data):
+  `DELIMITER` blocks, executable comments, MariaDB 11 `uca1400` collations,
+  `UUID`/`INET4`/`INET6`/spatial types, MariaDB-only attributes and table
+  options, sequences with their current value, generated-column values
+- Rule-based schema transformation to the TiDB dialect (collations, engines,
+  index key length limits, TEXT/BLOB defaults, `JSON_VALID` checks,
+  `JSON_VALUE`, zero dates, optional `AUTO_RANDOM` / `SHARD_ROW_ID_BITS` — see
   [docs/RULES.md](docs/RULES.md))
-- Recursive directory transformation with parallel workers
-- Output validation against the TiDB parser
-- Rules verified against the [TiDB documentation](https://docs.pingcap.com/tidb/stable/);
-  defaults target TiDB ≥ v7.4 (configurable)
+- A list of migration warnings for everything that changed meaning or was
+  dropped (stored programs, invisible columns, system versioning, …)
+- Output check: the result must still contain every table, column, key and
+  statement of the input, or the run fails
+- Directory mode for Dumpling exports: schema files are transformed, data
+  chunks and other files are copied unchanged
+- Tested end to end against live MariaDB 11.4 and TiDB v8.5.8 (schema, every
+  row byte for byte, sequences, collations); defaults target TiDB ≥ v7.4
+  (configurable)
 
 ## Installation
 
@@ -44,11 +54,33 @@ Transform a MariaDB schema dump:
 mariadb2tidb transform schema.sql -o schema_tidb.sql
 ```
 
-Transform a directory tree of `.sql` files (e.g. a Dumpling output directory):
+A full `mariadb-dump` (schema and data) works as is:
+
+```bash
+mariadb-dump --routines --triggers --events --databases shop > shop.sql
+mariadb2tidb transform shop.sql -o shop_tidb.sql
+mysql -h tidb -P 4000 -u root < shop_tidb.sql
+```
+
+Transform a Dumpling output directory into a TiDB Lightning source:
+schema `.sql` files are transformed, data chunks (`db.table.000000000.sql`
+from Dumpling, `db.table.00000.sql` from mydumper, CSV, compressed chunks) and
+other files such as `metadata` are copied unchanged. Output files are written
+to a temporary file and renamed into place, so links left in the output
+directory are replaced, never written through.
 
 ```bash
 mariadb2tidb transform ./DUMPLING -o ./LIGHTNING --workers 8
 ```
+
+Both print a list of migration warnings at the end: dropped triggers and
+routines, columns that are no longer invisible, replaced engines, zero-date
+defaults and similar changes that need a human decision.
+
+The output directory must not be the input directory or nested with it, and
+symbolic links inside the input tree are rejected rather than skipped.
+Gzip-compressed schema files are transformed and recompressed; zstd/snappy
+schema files must be decompressed first.
 
 Validate that a file parses with the TiDB parser:
 
@@ -80,7 +112,16 @@ collation_mappings:
 allowed_default_functions:         # kept in DEFAULT clauses; others stripped
   - current_timestamp
   - now
+zero_date_defaults: keep           # or drop: TiDB rejects them in strict sql_mode
+auto_random:                       # opt-in AUTO_INCREMENT -> AUTO_RANDOM
+  tables: []                       # table names or ["*"]
+  shard_bits: 5
+  range_bits: 54                   # IDs stay below 2^53 (JavaScript, PHP)
+shard_row_id_bits: 0               # >0: SHARD_ROW_ID_BITS for tables without a clustered PK
 ```
+
+Unknown keys and values TiDB would reject (for example `shard_bits` outside
+1–15) are reported as errors instead of falling back to defaults.
 
 Targeting TiDB older than v7.4? Map collations to `utf8mb4_general_ci`
 instead of `utf8mb4_0900_ai_ci`.
@@ -107,6 +148,10 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 - Vulnerability scan:
   ```bash
   make vulncheck
+  ```
+- Integration tests against live MariaDB and TiDB containers (Docker):
+  ```bash
+  make integration-up integration integration-down
   ```
 - Regenerate golden test files after intentional behavior changes:
   ```bash

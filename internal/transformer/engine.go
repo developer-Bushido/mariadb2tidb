@@ -1,6 +1,9 @@
 package transformer
 
 import (
+	"fmt"
+
+	"github.com/developer-Bushido/mariadb2tidb/internal/compat"
 	"github.com/developer-Bushido/mariadb2tidb/internal/config"
 	"github.com/developer-Bushido/mariadb2tidb/internal/parser"
 	"github.com/developer-Bushido/mariadb2tidb/internal/rules"
@@ -18,11 +21,17 @@ type Engine struct {
 
 // NewEngine creates a new transformation engine
 func NewEngine(cfg *config.Config) *Engine {
+	return NewEngineWithReporter(cfg, nil)
+}
+
+// NewEngineWithReporter creates an engine whose rules record migration
+// warnings in r.
+func NewEngineWithReporter(cfg *config.Config, r *compat.Reporter) *Engine {
 	if cfg == nil {
 		cfg = config.DefaultConfig()
 	}
 	return &Engine{
-		registry: rules.NewRegistry(cfg),
+		registry: rules.NewRegistryWithReporter(cfg, r),
 		walker:   parser.NewWalker(),
 		logger:   utils.GetLogger(),
 	}
@@ -46,11 +55,16 @@ func (e *Engine) Transform(stmts []ast.StmtNode) ([]ast.StmtNode, error) {
 			logger: e.logger,
 		}
 
-		// Apply the rule via AST walking
+		// Apply the rule via AST walking. A failing rule fails the whole
+		// transformation: silently keeping the node would emit DDL the rule
+		// was meant to fix.
 		var err error
 		result, err = e.walker.Walk(result, visitor)
+		if err == nil {
+			err = visitor.err
+		}
 		if err != nil {
-			e.logger.Error("Failed to apply rule", zap.String("rule", rule.Name()), zap.Error(err))
+			e.logger.Debug("Failed to apply rule", zap.String("rule", rule.Name()), zap.Error(err))
 			return nil, err
 		}
 
@@ -65,6 +79,7 @@ func (e *Engine) Transform(stmts []ast.StmtNode) ([]ast.StmtNode, error) {
 type ruleVisitor struct {
 	rule   rules.Rule
 	logger *zap.Logger
+	err    error // first Apply error
 }
 
 // Enter implements parser.Visitor interface
@@ -76,13 +91,15 @@ func (v *ruleVisitor) Enter(node ast.Node) (ast.Node, bool) {
 
 		modified, err := v.rule.Apply(node)
 		if err != nil {
-			v.logger.Error("Rule application failed",
-				zap.String("rule", v.rule.Name()),
-				zap.Error(err))
-			return node, false
+			if v.err == nil {
+				v.err = fmt.Errorf("rule %s: %w", v.rule.Name(), err)
+			}
+			return node, true
 		}
 
-		return modified, false
+		// A replacement node may have another type, which TiDB's Accept
+		// only takes when the children are skipped; the rule handled them.
+		return modified, modified != node
 	}
 
 	return node, false

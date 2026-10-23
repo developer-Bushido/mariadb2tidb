@@ -34,17 +34,12 @@ func TestGolden(t *testing.T) {
 	for _, fixture := range fixtures {
 		name := strings.TrimSuffix(filepath.Base(fixture), ".sql")
 		t.Run(name, func(t *testing.T) {
-			loader := parser.NewLoaderWithConfig(cfg)
-			stmts, err := loader.LoadFromFile(fixture)
-			require.NoError(t, err, "load fixture")
+			input, err := os.ReadFile(fixture)
+			require.NoError(t, err, "read fixture")
 
-			engine := transformer.NewEngine(cfg)
-			transformed, err := engine.Transform(stmts)
+			// The same pipeline as the CLI, including the output check.
+			got, err := transformer.TransformString(cfg, string(input), nil)
 			require.NoError(t, err, "transform")
-
-			writer := parser.NewWriterWithConfig(cfg)
-			got, err := writer.WriteStatements(transformed)
-			require.NoError(t, err, "write")
 
 			// The output must itself be valid SQL for the TiDB parser,
 			// without any loader preprocessing masking problems.

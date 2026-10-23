@@ -78,11 +78,9 @@ func TestLoaderPreprocessUUIDIndexName(t *testing.T) {
 	lower := strings.ToLower(out)
 	cleaned := strings.ReplaceAll(lower, "`", "")
 
-	if !strings.Contains(cleaned, "uuid_key") {
-		t.Errorf("index name not renamed: %s", out)
-	}
-	if strings.Count(cleaned, "uuid") != 3 {
-		t.Errorf("expected uuid to appear three times, got: %s", out)
+	// The index keeps its name: only the column type is rewritten.
+	if !strings.Contains(cleaned, "unique uuid(uuid)") {
+		t.Errorf("index name changed: %s", out)
 	}
 	if !strings.Contains(cleaned, "uuid char(36)") {
 		t.Errorf("uuid type not converted: %s", out)

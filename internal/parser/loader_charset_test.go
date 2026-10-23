@@ -113,8 +113,9 @@ func TestLoaderApplyCharsetMappings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := loader.applyCharsetMappings(tt.input)
-			assert.Contains(t, result, tt.expected, "Expected transformation not found")
+			result := joinTokens(loader.pre.mapCharsetsAndCollations(tokenize(tt.input), mapDDL))
+			// Mapping replaces names only; keywords keep the input's case.
+			assert.Contains(t, strings.ToUpper(result), strings.ToUpper(tt.expected), "Expected transformation not found")
 		})
 	}
 }

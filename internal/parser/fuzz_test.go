@@ -20,6 +20,13 @@ func FuzzPreprocessSQL(f *testing.F) {
 		"CREATE TABLE t (v varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci);",
 		"uuid uuid uuid char(36) not null",
 		"char(36)char(36)",
+		// mariadb-dump shapes: DELIMITER blocks, executable and MariaDB-only
+		// comments, sequences, MariaDB-only attributes and options.
+		"DELIMITER ;;\n/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`%`*/ /*!50003 TRIGGER t BEFORE INSERT ON x FOR EACH ROW BEGIN SET NEW.a=1; END */;;\nDELIMITER ;\n",
+		"/*M!999999\\- enable the sandbox mode */ SET collation_connection = utf8mb4_uca1400_ai_ci;",
+		"CREATE SEQUENCE s start with 1 increment by -5 maxvalue 1; DO SETVAL(`s`, -9, 0, 1);",
+		"CREATE TABLE t (a INT INVISIBLE, b BLOB COMPRESSED=zlib, g POINT, SPATIAL KEY (g), PERIOD FOR p(a, a)) `PAGE_COMPRESSED`='1', WITH SYSTEM VERSIONING",
+		"ALTER TABLE t ADD COLUMN (a uuid, b inet6), PAGE_COMPRESSED=1,",
 	}
 	for _, s := range seeds {
 		f.Add(s)

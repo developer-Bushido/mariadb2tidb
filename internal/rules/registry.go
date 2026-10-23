@@ -1,6 +1,10 @@
 package rules
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/developer-Bushido/mariadb2tidb/internal/compat"
 	"github.com/developer-Bushido/mariadb2tidb/internal/config"
 	"github.com/developer-Bushido/mariadb2tidb/internal/utils"
 	"go.uber.org/zap"
@@ -14,12 +18,18 @@ type Registry struct {
 
 // NewRegistry creates a new rules registry
 func NewRegistry(cfg *config.Config) *Registry {
+	return NewRegistryWithReporter(cfg, nil)
+}
+
+// NewRegistryWithReporter creates a registry whose rules record migration
+// warnings in r (nil disables them).
+func NewRegistryWithReporter(cfg *config.Config, r *compat.Reporter) *Registry {
 	registry := &Registry{
 		rules:  make([]Rule, 0),
 		logger: utils.GetLogger(),
 	}
 
-	registry.registerDefaultRules(cfg)
+	registry.registerDefaultRules(cfg, r)
 
 	return registry
 }
@@ -84,25 +94,56 @@ type RuleInfo struct {
 
 // registerDefaultRules registers the default set of transformation rules,
 // honoring the enabled_rules/disabled_rules configuration.
-func (r *Registry) registerDefaultRules(cfg *config.Config) {
+func (r *Registry) registerDefaultRules(cfg *config.Config, rep *compat.Reporter) {
 	r.logger.Info("Registering default rules")
 
-	defaultRules := []Rule{
-		// Collation rule (highest priority: charset handling affects other rules)
-		NewCollationRule(cfg),
-		&KeyLengthRule{},
-		&IndexPrefixRule{},
-		&TextBlobDefaultRule{},
-		&JSONCheckRule{},
-		NewFunctionDefaultRule(cfg),
-		&JSONGeneratedRule{},
-	}
-
-	for _, rule := range defaultRules {
+	for _, rule := range defaultRules(cfg, rep) {
 		if cfg != nil && !cfg.IsRuleEnabled(rule.Name()) {
 			r.logger.Info("Skipping disabled rule", zap.String("name", rule.Name()))
 			continue
 		}
 		r.Register(rule)
 	}
+}
+
+func defaultRules(cfg *config.Config, rep *compat.Reporter) []Rule {
+	return []Rule{
+		// Collation rule (highest priority: charset handling affects other rules)
+		NewCollationRule(cfg),
+		NewEngineRule(rep),
+		&KeyLengthRule{},
+		&IndexPrefixRule{},
+		&TextBlobDefaultRule{},
+		&JSONCheckRule{},
+		NewFunctionDefaultRule(cfg),
+		NewJSONValueRule(rep),
+		NewZeroDateRule(cfg, rep),
+		&JSONGeneratedRule{},
+		NewAutoRandomRule(cfg, rep),
+		NewShardRowIDRule(cfg),
+		NewGeneratedValuesRule(rep),
+	}
+}
+
+// CheckRuleNames reports rule names in enabled_rules / disabled_rules that
+// do not exist: a typo in enabled_rules would otherwise silently disable
+// every rule.
+func CheckRuleNames(cfg *config.Config) error {
+	if cfg == nil {
+		return nil
+	}
+	known := map[string]bool{}
+	var names []string
+	for _, rule := range defaultRules(nil, nil) {
+		known[rule.Name()] = true
+		names = append(names, rule.Name())
+	}
+	for _, list := range [][]string{cfg.EnabledRules, cfg.DisabledRules} {
+		for _, n := range list {
+			if !known[n] {
+				return fmt.Errorf("unknown rule %q (rules: %s)", n, strings.Join(names, ", "))
+			}
+		}
+	}
+	return nil
 }

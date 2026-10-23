@@ -28,3 +28,18 @@ allowed_default_functions:
   - now
   - localtime
   - localtimestamp
+# Zero-date DEFAULTs ('0000-00-00 ...') fail on TiDB under its default
+# sql_mode (NO_ZERO_DATE/NO_ZERO_IN_DATE); they load with a permissive one
+# (mariadb-dump output and TiDB Lightning set it). keep = warn, drop = remove.
+zero_date_defaults: keep
+# Opt-in: convert BIGINT AUTO_INCREMENT primary keys of these tables ("*" =
+# all eligible) to AUTO_RANDOM to avoid write hotspots. UNSIGNED columns are
+# refused (IDs would exceed 2^63-1, PHP_INT_MAX); range_bits 54 keeps every
+# ID below 2^53 (exact in JavaScript), 64 is TiDB's default.
+auto_random:
+  tables: []
+  shard_bits: 5
+  range_bits: 54
+# Opt-in: SHARD_ROW_ID_BITS for tables without a clustered primary key.
+shard_row_id_bits: 0
+pre_split_regions: 0

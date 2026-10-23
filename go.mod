@@ -5,6 +5,7 @@ go 1.26.4
 toolchain go1.26.10
 
 require (
+	github.com/go-sql-driver/mysql v1.9.3
 	github.com/pingcap/tidb/pkg/parser v0.0.0-20260827064614-8b857efa2036
 	github.com/pterm/pterm v0.12.84
 	github.com/schollz/progressbar/v3 v3.19.1
@@ -23,7 +24,6 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/containerd/console v1.0.5 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect

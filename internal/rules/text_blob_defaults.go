@@ -57,6 +57,9 @@ func (r *TextBlobDefaultRule) Apply(node ast.Node) (ast.Node, error) {
 
 // isTextBlobOrJSON checks if field type is TEXT, BLOB, or JSON
 func isTextBlobOrJSON(ft *types.FieldType) bool {
+	if ft == nil { // ALTER TABLE ... ALTER COLUMN c SET DEFAULT: no type
+		return false
+	}
 	tp := ft.GetType()
 	if types.IsTypeBlob(tp) {
 		// TEXT types are represented as blob types with a charset, so this check

@@ -1,15 +1,15 @@
-// Package parser loads SQL text into TiDB parser ASTs (with light textual
-// preprocessing for constructs the parser rejects) and restores ASTs back
-// into formatted SQL.
+// Package parser loads SQL text into TiDB parser ASTs (after token-level
+// preprocessing of MariaDB-only syntax the parser rejects) and restores ASTs
+// back into formatted SQL.
 package parser
 
 import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"strings"
 
+	"github.com/developer-Bushido/mariadb2tidb/internal/compat"
 	"github.com/developer-Bushido/mariadb2tidb/internal/config"
 	"github.com/developer-Bushido/mariadb2tidb/internal/utils"
 	"github.com/pingcap/tidb/pkg/parser"
@@ -18,41 +18,30 @@ import (
 	"go.uber.org/zap"
 )
 
-// mappingReplacement is a precompiled charset/collation rewrite.
-type mappingReplacement struct {
-	re   *regexp.Regexp
-	repl string
-}
-
 // Loader handles loading and parsing SQL files
 type Loader struct {
-	parser       *parser.Parser
-	logger       *zap.Logger
-	replacements []mappingReplacement // precompiled charset/collation rewrites
+	parser *parser.Parser
+	logger *zap.Logger
+	pre    *preprocessor
 }
 
-// NewLoader creates a new SQL loader
+// NewLoader creates a SQL loader without charset mappings; collations TiDB
+// does not support still fall back to a supported one of the same charset.
 func NewLoader() *Loader {
 	return &Loader{
 		parser: parser.New(),
 		logger: utils.GetLogger(),
+		pre:    &preprocessor{collations: compat.NewCollationResolver(nil), charsets: map[string]charsetTarget{}},
 	}
 }
 
 // WithCharsetMappings configures the loader with charset and collation mappings
 func (l *Loader) WithCharsetMappings(charsetMap map[string]string, collationMap map[string]string) *Loader {
-	l.replacements = l.replacements[:0]
-	for source, target := range charsetMap {
-		l.replacements = append(l.replacements, mappingReplacement{
-			re:   regexp.MustCompile(`(?i)character\s+set\s+` + regexp.QuoteMeta(source) + `\b`),
-			repl: "CHARACTER SET " + target,
-		})
-	}
-	for source, target := range collationMap {
-		l.replacements = append(l.replacements, mappingReplacement{
-			re:   regexp.MustCompile(`(?i)collate\s+` + regexp.QuoteMeta(source) + `\b`),
-			repl: "COLLATE " + target,
-		})
+	cfg := &config.Config{CollationMappings: collationMap}
+	l.pre.collations = compat.NewCollationResolver(cfg)
+	l.pre.charsets = map[string]charsetTarget{}
+	for src, dst := range charsetMap {
+		l.pre.charsets[strings.ToLower(src)] = charsetTarget{charset: dst}
 	}
 	return l
 }
@@ -60,19 +49,21 @@ func (l *Loader) WithCharsetMappings(charsetMap map[string]string, collationMap 
 // NewLoaderWithConfig creates a loader configured with charset mappings from config
 func NewLoaderWithConfig(cfg *config.Config) *Loader {
 	loader := NewLoader()
-
-	if cfg != nil {
-		// Convert charset mappings
-		charsetMap := make(map[string]string)
-		for source, mapping := range cfg.CharsetMappings {
-			charsetMap[source] = mapping.TargetCharset
-		}
-
-		// Use collation mappings directly
-		loader.WithCharsetMappings(charsetMap, cfg.CollationMappings)
+	if cfg == nil {
+		return loader
 	}
-
+	loader.pre.collations = compat.NewCollationResolver(cfg)
+	for src, m := range cfg.CharsetMappings {
+		loader.pre.charsets[strings.ToLower(src)] = charsetTarget{charset: m.TargetCharset, collation: m.TargetCollation}
+	}
 	return loader
+}
+
+// WithReporter makes the loader record migration warnings (dropped stored
+// programs, stripped MariaDB-only attributes, ...) in r.
+func (l *Loader) WithReporter(r *compat.Reporter) *Loader {
+	l.pre.report = r
+	return l
 }
 
 // LoadFromFile loads and parses SQL from a file
@@ -81,7 +72,7 @@ func (l *Loader) LoadFromFile(filename string) ([]ast.StmtNode, error) {
 
 	file, err := os.Open(filename)
 	if err != nil {
-		l.logger.Error("Failed to open file", zap.String("file", filename), zap.Error(err))
+		l.logger.Debug("Failed to open file", zap.String("file", filename), zap.Error(err))
 		return nil, err
 	}
 	defer func() { _ = file.Close() }()
@@ -93,7 +84,7 @@ func (l *Loader) LoadFromFile(filename string) ([]ast.StmtNode, error) {
 func (l *Loader) LoadFromReader(reader io.Reader) ([]ast.StmtNode, error) {
 	content, err := io.ReadAll(reader)
 	if err != nil {
-		l.logger.Error("Failed to read SQL content", zap.Error(err))
+		l.logger.Debug("Failed to read SQL content", zap.Error(err))
 		return nil, err
 	}
 
@@ -109,7 +100,7 @@ func (l *Loader) LoadFromString(sql string) ([]ast.StmtNode, error) {
 
 	stmts, _, err := l.parse(sql)
 	if err != nil {
-		l.logger.Error("Failed to parse SQL", zap.Error(err))
+		l.logger.Debug("Failed to parse SQL", zap.Error(err))
 		return nil, err
 	}
 
@@ -117,118 +108,15 @@ func (l *Loader) LoadFromString(sql string) ([]ast.StmtNode, error) {
 	return stmts, nil
 }
 
-var (
-	uuidRegex      = regexp.MustCompile(`(?i)\buuid\b`)
-	encryptedRegex = regexp.MustCompile("(?i)\\s*`encrypted`\\s*=\\s*yes\\s*`encryption_key_id`\\s*=\\s*\\d+\\s*")
-	char36Regex    = regexp.MustCompile(`(?i)char\(36\)`)
-	uuidKeyRegex   = regexp.MustCompile("(?i)unique\\s+key\\s+`?uuid`?")
-)
-
-// preprocessSQL performs lightweight text-based transformations before AST parsing.
-// Currently handles UUID type replacement and charset/collation transformation for TiDB compatibility.
-func (l *Loader) preprocessSQL(sql string) string {
-	// Remove MariaDB table encryption options that TiDB doesn't support
-	sql = encryptedRegex.ReplaceAllString(sql, " ")
-
-	// Apply charset and collation transformations if configured
-	sql = l.applyCharsetMappings(sql)
-
-	// Replace standalone UUID data types with char(36) but keep functions and identifiers
-	matches := uuidRegex.FindAllStringIndex(sql, -1)
-	if matches == nil {
-		return sql
-	}
-
-	var result strings.Builder
-	last := 0
-	for _, m := range matches {
-		start, end := m[0], m[1]
-		result.WriteString(sql[last:start])
-
-		// Find preceding non-space/non-backtick character
-		j := start - 1
-		for j >= 0 && (isSpace(sql[j]) || sql[j] == '`') {
-			j--
-		}
-
-		// Find following non-space/non-backtick character
-		i := end
-		for i < len(sql) && (isSpace(sql[i]) || sql[i] == '`') {
-			i++
-		}
-
-		// Extract preceding word for context checks
-		wordEnd := j
-		for wordEnd >= 0 && (isAlphaNum(sql[wordEnd]) || sql[wordEnd] == '_') {
-			wordEnd--
-		}
-		precedingWord := strings.ToLower(sql[wordEnd+1 : j+1])
-
-		switch {
-		case i < len(sql) && sql[i] == '(':
-			// uuid used as function - leave unchanged
-			result.WriteString(sql[start:end])
-		case i < len(sql) && sql[i] == '`':
-			// uuid inside backticks - identifier
-			result.WriteString(sql[start:end])
-		case precedingWord == "key" || precedingWord == "unique" || precedingWord == "primary" || precedingWord == "constraint" || precedingWord == "index":
-			// index or constraint name - leave unchanged
-			result.WriteString(sql[start:end])
-		case j >= 0 && (isAlphaNum(sql[j]) || sql[j] == '_'):
-			// uuid used as a data type - replace
-			result.WriteString("char(36)")
-		default:
-			// uuid as column name or other - leave unchanged
-			result.WriteString(sql[start:end])
-		}
-
-		last = end
-	}
-
-	result.WriteString(sql[last:])
-
-	processed := result.String()
-
-	// Rename unique key named "uuid" to "uuid_key"
-	processed = uuidKeyRegex.ReplaceAllString(processed, "UNIQUE KEY uuid_key")
-
-	// Add default '' to char(36) NOT NULL columns missing an explicit default
-	matches = char36Regex.FindAllStringIndex(processed, -1)
-	if matches == nil {
-		return processed
-	}
-
-	var out strings.Builder
-	last = 0
-	for _, m := range matches {
-		end := m[1]
-		out.WriteString(processed[last:end])
-
-		rest := processed[end:]
-		segEnd := strings.IndexAny(rest, ",)")
-		if segEnd == -1 {
-			segEnd = len(rest)
-		}
-		segment := rest[:segEnd]
-		// Byte-length-preserving lowercase: idx below indexes segment itself.
-		lowerSeg := asciiLower(segment)
-		if strings.Contains(lowerSeg, "not null") && !strings.Contains(lowerSeg, "default") {
-			idx := strings.Index(lowerSeg, "not null") + len("not null")
-			segment = segment[:idx] + " default ''" + segment[idx:]
-		}
-		out.WriteString(segment)
-		last = end + segEnd
-	}
-	out.WriteString(processed[last:])
-	return out.String()
+// ParseTiDB parses SQL with the TiDB parser only, without preprocessing.
+func (l *Loader) ParseTiDB(sql string) ([]ast.StmtNode, error) {
+	stmts, _, err := l.parse(sql)
+	return stmts, err
 }
 
-// applyCharsetMappings applies configured charset and collation transformations
-func (l *Loader) applyCharsetMappings(sql string) string {
-	for _, m := range l.replacements {
-		sql = m.re.ReplaceAllString(sql, m.repl)
-	}
-	return sql
+// preprocessSQL rewrites MariaDB-only syntax the TiDB parser rejects.
+func (l *Loader) preprocessSQL(sql string) string {
+	return l.pre.run(sql)
 }
 
 // ValidateFile parses a file with the TiDB parser without any preprocessing
