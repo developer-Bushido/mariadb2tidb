@@ -25,9 +25,9 @@ A command-line tool that converts MariaDB schemas into TiDB-compatible SQL.
   statement of the input, or the run fails
 - Directory mode for Dumpling exports: schema files are transformed, data
   chunks and other files are copied unchanged
-- Tested end to end against live MariaDB 11.4 and TiDB v8.5.8 (schema, every
-  row byte for byte, sequences, collations); defaults target TiDB ≥ v7.4
-  (configurable)
+- Tested end to end against live MariaDB 11.4 and 11.8 and TiDB v8.5.8 and
+  v7.5.8 (schema, every row byte for byte, sequences, collations); defaults
+  target TiDB ≥ v7.4 (configurable)
 
 ## Installation
 

@@ -39,7 +39,9 @@ ci: fmt vet test
 
 # Integration tests against live servers: real MariaDB -> mariadb-dump ->
 # mariadb2tidb -> TiDB (unistore), comparing schema and data. Images are
-# pinned by digest, like the CI job.
+# pinned by digest, like the CI job. Defaults are one pair of the CI matrix;
+# override MARIADB_IMAGE / TIDB_IMAGE with another image from ci.yml to run
+# the other pairs (MariaDB 11.4/11.8 x TiDB v8.5.8/v7.5.8).
 TIDB_IMAGE    ?= pingcap/tidb:v8.5.8@sha256:df168c764bf2dfdb166dc37a5c3b0e210d29d5f3ab2d33317fd0fdf7b32037f5
 MARIADB_IMAGE ?= mariadb:11.4@sha256:1292844148b311e4ed4300022a996d39083f415a963e970cf47cad1b3b18e3a6
 
