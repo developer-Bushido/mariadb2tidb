@@ -74,7 +74,7 @@ jobs:
         run: go test ./... -count=1 -coverprofile=coverage.out -covermode=atomic
 
       - name: Generate and publish coverage badge
-        uses: vladopajic/go-test-coverage@f484eec846448c97c777a26f8b58c5a69a327e12 # v2.20.0
+        uses: vladopajic/go-test-coverage@249eda999ac7e91238727277beec9b32b28a19b0 # v2.21.0
         with:
           profile: coverage.out
           threshold-total: 0
