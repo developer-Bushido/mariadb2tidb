@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The integration CI job runs as a matrix: MariaDB 11.4 and 11.8 (both LTS)
+  against TiDB v8.5.8 and v7.5.8, the oldest LTS the default
+  `utf8mb4_0900_ai_ci` collation mapping supports.
+
 ## [1.3.0] - 2026-10-23
 
 Tested end to end against live MariaDB 11.4 and TiDB v8.5.8: a corpus of

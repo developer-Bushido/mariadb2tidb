@@ -82,17 +82,33 @@ jobs:
           git-branch: badges
 
   integration:
-    name: integration (MariaDB 11.4 -> TiDB v8.5.8)
+    name: integration (MariaDB ${{ matrix.mariadb.name }} -> TiDB ${{ matrix.tidb.name }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      # Source: the two current MariaDB LTS lines. Target: the latest TiDB LTS
+      # and v7.5, the oldest LTS the default utf8mb4_0900_ai_ci mapping
+      # supports (needs v7.4+).
+      matrix:
+        mariadb:
+          - name: "11.4"
+            image: mariadb:11.4@sha256:1292844148b311e4ed4300022a996d39083f415a963e970cf47cad1b3b18e3a6
+          - name: "11.8"
+            image: mariadb:11.8@sha256:c4124d1afa875e47f2892edf26b482fa54f796e2f342d3717a04ca091a22a9bd
+        tidb:
+          - name: v8.5.8
+            image: pingcap/tidb:v8.5.8@sha256:df168c764bf2dfdb166dc37a5c3b0e210d29d5f3ab2d33317fd0fdf7b32037f5
+          - name: v7.5.8
+            image: pingcap/tidb:v7.5.8@sha256:e0e06d0ba946966eedfaf704b1cb56cf12767c41e8894592f2a53bc5e1eb28f4
     services:
       tidb:
-        image: pingcap/tidb:v8.5.8@sha256:df168c764bf2dfdb166dc37a5c3b0e210d29d5f3ab2d33317fd0fdf7b32037f5
+        image: ${{ matrix.tidb.image }}
         ports:
           - 4000:4000
       mariadb:
-        image: mariadb:11.4@sha256:1292844148b311e4ed4300022a996d39083f415a963e970cf47cad1b3b18e3a6
+        image: ${{ matrix.mariadb.image }}
         env:
           MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "1"
         ports:
