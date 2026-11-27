@@ -5,14 +5,14 @@ go 1.26.4
 toolchain go1.26.10
 
 require (
-	github.com/go-sql-driver/mysql v1.10.1
+	github.com/go-sql-driver/mysql v1.10.2
 	github.com/pingcap/tidb/pkg/parser v0.0.0-20260827064614-8b857efa2036
 	github.com/pterm/pterm v0.12.84
 	github.com/schollz/progressbar/v3 v3.19.1
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/zap v1.28.0
-	golang.org/x/sync v0.24.0
+	golang.org/x/sync v0.25.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
